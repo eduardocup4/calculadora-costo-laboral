@@ -1,19 +1,14 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   Calculator, TrendingUp, GitCompare, Check,
-  FileSpreadsheet, FileText, BarChart3, Users, Building2
+  ChevronLeft, Award
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
-
 import {
-  MONTHS,
-  parseExcel, parseAbsenceFile, autoDetectColumns,
-  validateData, calculateAll, analyzePeriods, analyzePrecierre
+  parseExcel, autoDetectColumns, validateData, 
+  calculateAll, analyzePeriods, analyzePrecierre,
+  parseAbsenceFile, MONTHS
 } from './utils.js';
 
-// Eliminamos EmployeeSelection de aquí para evitar el error
 import {
   FileUpload, ColumnMapping, 
   CalculationConfig, AbsenceUpload
@@ -24,87 +19,104 @@ import PredictiveAnalysis from './PredictiveAnalysis.jsx';
 import PrecierreAnalysis from './PrecierreAnalysis.jsx';
 
 // ============================================================================
-// COMPONENTE: SELECTOR DE MODO
+// COMPONENTE: SELECTOR DE MODO (MEJORADO VISUALMENTE)
 // ============================================================================
 
 const ModeSelector = ({ onSelectMode }) => {
   const modes = [
     {
       id: 'single',
-      title: 'Cálculo Simple',
-      description: 'Calcula el costo laboral anual a partir de una planilla mensual',
+      title: 'Cálculo Mensual',
+      description: 'Genera reportes de costo laboral exactos para un mes específico.',
       icon: Calculator,
       color: 'blue',
       gradient: 'from-blue-500 to-indigo-600',
-      features: ['Desglose por empleado', 'Resumen por área', 'Exportación Excel/PDF']
+      shadow: 'shadow-blue-500/20',
+      features: ['Desglose Individual', 'Reporte por Áreas', 'Exportación PDF/Excel']
     },
     {
       id: 'predictive',
-      title: 'Análisis Predictivo',
-      description: 'Proyecta costos y tendencias cargando múltiples planillas históricas',
+      title: 'People Analytics',
+      description: 'Proyecta costos futuros y analiza tendencias de ausentismo.',
       icon: TrendingUp,
       color: 'purple',
-      gradient: 'from-purple-500 to-fuchsia-600',
-      features: ['Proyección a 12 meses', 'Análisis de ausentismo (Bradford)', 'Tendencias de Headcount']
+      gradient: 'from-violet-500 to-fuchsia-600',
+      shadow: 'shadow-purple-500/20',
+      features: ['Proyección a 12 meses', 'Factor Bradford', 'Headcount Trend']
     },
     {
       id: 'precierre',
-      title: 'Análisis Precierre',
-      description: 'Compara el mes actual vs. anterior para detectar anomalías antes de pagar',
+      title: 'Auditoría Precierre',
+      description: 'Detecta anomalías comparando el mes actual contra el anterior.',
       icon: GitCompare,
       color: 'emerald',
       gradient: 'from-emerald-500 to-teal-600',
-      features: ['Detección de Altas/Bajas', 'Variaciones salariales', 'Cambios de cargo/área']
+      shadow: 'shadow-emerald-500/20',
+      features: ['Variaciones Salariales', 'Detección Altas/Bajas', 'Alertas de Desvíos']
     }
   ];
 
   return (
-    <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto mt-8 px-4">
-      {modes.map((mode) => (
-        <button
-          key={mode.id}
-          onClick={() => onSelectMode(mode.id)}
-          className="relative group overflow-hidden bg-white p-8 rounded-3xl border border-slate-100 shadow-xl hover:shadow-2xl transition-all duration-300 text-left hover:-translate-y-1"
-        >
-          <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${mode.gradient} opacity-5 rounded-bl-full transition-transform group-hover:scale-110`} />
-          
-          <div className={`w-14 h-14 rounded-2xl bg-${mode.color}-50 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
-            <mode.icon className={`w-7 h-7 text-${mode.color}-600`} />
-          </div>
-          
-          <h3 className="text-xl font-bold text-slate-800 mb-3">{mode.title}</h3>
-          <p className="text-slate-500 text-sm leading-relaxed mb-6">{mode.description}</p>
-          
-          <ul className="space-y-2">
-            {mode.features.map((feat, i) => (
-              <li key={i} className="flex items-center text-xs text-slate-400">
-                <Check className={`w-3 h-3 mr-2 text-${mode.color}-500`} />
-                {feat}
-              </li>
-            ))}
-          </ul>
-        </button>
-      ))}
+    <div className="max-w-6xl mx-auto mt-12 px-4 animate-enter">
+      <div className="text-center mb-16 space-y-4">
+        <h2 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight">
+          Gestión de <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Costo Laboral</span>
+        </h2>
+        <p className="text-lg text-slate-500 max-w-2xl mx-auto">
+          Plataforma avanzada para el cálculo, proyección y auditoría de nóminas bajo normativa boliviana 2025.
+        </p>
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-8">
+        {modes.map((mode) => (
+          <button
+            key={mode.id}
+            onClick={() => onSelectMode(mode.id)}
+            className="group relative bg-white rounded-[2rem] p-8 text-left border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 overflow-hidden"
+          >
+            {/* Background Decoration */}
+            <div className={`absolute top-0 right-0 w-64 h-64 bg-gradient-to-br ${mode.gradient} opacity-[0.03] rounded-full blur-3xl -mr-16 -mt-16 group-hover:opacity-[0.08] transition-opacity duration-500`} />
+            
+            <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${mode.gradient} flex items-center justify-center mb-8 shadow-lg ${mode.shadow} group-hover:scale-110 transition-transform duration-300`}>
+              <mode.icon className="w-8 h-8 text-white" />
+            </div>
+            
+            <h3 className="text-2xl font-bold text-slate-800 mb-3 group-hover:text-blue-700 transition-colors">
+              {mode.title}
+            </h3>
+            <p className="text-slate-500 leading-relaxed mb-8">
+              {mode.description}
+            </p>
+            
+            <div className="space-y-3 border-t border-slate-100 pt-6">
+              {mode.features.map((feat, i) => (
+                <div key={i} className="flex items-center text-sm text-slate-600 font-medium">
+                  <div className={`w-1.5 h-1.5 rounded-full bg-gradient-to-r ${mode.gradient} mr-3`} />
+                  {feat}
+                </div>
+              ))}
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   );
 };
 
 // ============================================================================
-// COMPONENTE PRINCIPAL
+// COMPONENTE PRINCIPAL (ORQUESTADOR)
 // ============================================================================
 
 const App = () => {
-  const [mode, setMode] = useState(null); // 'single', 'predictive', 'precierre'
+  const [mode, setMode] = useState(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
   // Estados de Datos
-  const [fileData, setFileData] = useState(null); // { headers, data }
-  const [multiFilesData, setMultiFilesData] = useState([]); // Array de planillas para predictivo
+  const [fileData, setFileData] = useState(null);
+  const [multiFilesData, setMultiFilesData] = useState([]);
   const [columnMapping, setColumnMapping] = useState({});
-  
-  // Configuración de Cálculo
   const [config, setConfig] = useState({
     aguinaldo: true,
     primaUtilidades: true,
@@ -114,17 +126,16 @@ const App = () => {
 
   // Resultados
   const [results, setResults] = useState(null);
-  const [analysis, setAnalysis] = useState(null); // Resultado Predictivo
-  const [precierreAnalysis, setPrecierreAnalysis] = useState(null); // Resultado Precierre
+  const [analysis, setAnalysis] = useState(null);
+  const [precierreAnalysis, setPrecierreAnalysis] = useState(null);
   const [absenceData, setAbsenceData] = useState(null);
   const [isLoadingAbsence, setIsLoadingAbsence] = useState(false);
 
-  // --- MANEJADORES DE NAVEGACIÓN ---
+  // --- HANDLERS ---
 
   const handleModeSelect = (selectedMode) => {
     setMode(selectedMode);
     setCurrentStep(1);
-    // Reset states
     setFileData(null);
     setMultiFilesData([]);
     setResults(null);
@@ -140,7 +151,7 @@ const App = () => {
   const handleNextStep = () => setCurrentStep(prev => prev + 1);
   const handlePrevStep = () => setCurrentStep(prev => prev - 1);
 
-  // --- MANEJADORES DE ARCHIVOS ---
+  // --- LOGICA DE ARCHIVOS ---
 
   const handleFileUpload = async (file) => {
     setIsLoading(true);
@@ -148,15 +159,10 @@ const App = () => {
     try {
       const { headers, data } = await parseExcel(file);
       setFileData({ headers, data, fileName: file.name });
-      
-      // Auto-detectar columnas
-      const detected = autoDetectColumns(headers);
-      setColumnMapping(detected);
-      
+      setColumnMapping(autoDetectColumns(headers));
       handleNextStep();
     } catch (err) {
-      setError('Error al leer el archivo. Asegúrese de que sea un Excel válido.');
-      console.error(err);
+      setError('Error al leer el archivo. Verifica el formato.');
     } finally {
       setIsLoading(false);
     }
@@ -168,58 +174,32 @@ const App = () => {
     try {
       const promises = Array.from(files).map(async (file) => {
         const { headers, data } = await parseExcel(file);
-        // Intentar extraer fecha del nombre (ej: "Planilla Enero 2025.xlsx")
         const nameLower = file.name.toLowerCase();
         let month = 1;
         let year = 2025;
-        
-        MONTHS.forEach((m, i) => {
-          if (nameLower.includes(m.toLowerCase())) month = i + 1;
-        });
+        MONTHS.forEach((m, i) => { if (nameLower.includes(m.toLowerCase())) month = i + 1; });
         const yearMatch = nameLower.match(/20\d{2}/);
         if (yearMatch) year = parseInt(yearMatch[0]);
 
-        return { 
-          id: Math.random().toString(36).substr(2, 9),
-          file, 
-          headers, 
-          data, 
-          month, 
-          year, 
-          name: file.name 
-        };
+        return { id: Math.random().toString(36).substr(2, 9), file, headers, data, month, year, name: file.name };
       });
 
       const processedFiles = await Promise.all(promises);
-      // Ordenar por fecha
       processedFiles.sort((a, b) => (a.year * 100 + a.month) - (b.year * 100 + b.month));
-      
       setMultiFilesData(processedFiles);
+      if (processedFiles.length > 0) setColumnMapping(autoDetectColumns(processedFiles[processedFiles.length - 1].headers));
       
-      // Usar headers del archivo más reciente para el mapping
-      if (processedFiles.length > 0) {
-        const latest = processedFiles[processedFiles.length - 1];
-        setColumnMapping(autoDetectColumns(latest.headers));
-      }
-
       handleNextStep();
     } catch (err) {
-      setError('Error al procesar archivos múltiples.');
+      setError('Error al procesar múltiples archivos.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // --- CÁLCULOS Y ANÁLISIS ---
+  // --- CALCULO ---
 
-  const handleValidate = () => {
-    // Validar datos actuales (Single o el último de Multi)
-    const dataToValidate = mode === 'single' ? fileData.data : multiFilesData[multiFilesData.length - 1].data;
-    const validation = validateData(dataToValidate, columnMapping);
-    
-    // Si hay errores críticos podríamos detener, pero permitimos continuar con advertencia
-    handleNextStep();
-  };
+  const handleValidate = () => handleNextStep(); // Simplificado para demo visual
 
   const handleCalculate = () => {
     setIsLoading(true);
@@ -228,33 +208,28 @@ const App = () => {
         if (mode === 'single') {
           const res = calculateAll(fileData.data, columnMapping, config);
           setResults(res);
-          handleNextStep(); // Ir a resultados
+          handleNextStep();
         } else if (mode === 'predictive' || mode === 'precierre') {
-          // Calcular individualmente para cada periodo
           const periodsResults = multiFilesData.map(file => ({
             ...file,
             results: calculateAll(file.data, columnMapping, config)
           }));
           
           if (mode === 'predictive') {
-             // Pasamos al paso de carga de ausencias
-             // Guardamos resultados intermedios en el mismo estado para usarlos luego
              setMultiFilesData(periodsResults); 
              handleNextStep();
           } else {
-             // Precierre: Ejecutar análisis comparativo
              const analysisRes = analyzePrecierre(periodsResults);
              setPrecierreAnalysis(analysisRes);
              handleNextStep();
           }
         }
       } catch (err) {
-        console.error(err);
-        setError('Error durante el cálculo: ' + err.message);
+        setError('Error: ' + err.message);
       } finally {
         setIsLoading(false);
       }
-    }, 500);
+    }, 800);
   };
 
   const handleAbsenceUpload = async (file) => {
@@ -263,53 +238,52 @@ const App = () => {
       const absences = await parseAbsenceFile(file);
       setAbsenceData(absences);
     } catch (err) {
-      console.error(err);
-      alert('Error al leer archivo de ausencias');
+      alert('Error en archivo de ausencias');
     } finally {
       setIsLoadingAbsence(false);
     }
   };
 
   const handleRunPredictiveAnalysis = () => {
-    // Ejecutar análisis final con datos de planillas + ausencias
     const analysisRes = analyzePeriods(multiFilesData, absenceData);
     setAnalysis(analysisRes);
     handleNextStep();
   };
 
-  // Exportaciones Dummy (Conectar con librería real si se desea)
-  const handleExportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(results?.employees || []);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Resultados");
-    XLSX.writeFile(wb, "Costo_Laboral.xlsx");
-  };
-
-  const handleExportPDF = () => {
-    alert("Generando PDF...");
-  };
-
   // --- RENDERIZADO ---
 
   return (
-    <div className="min-h-screen pb-12 animate-fade-in">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3 cursor-pointer" onClick={handleBackToModes}>
-            <div className="w-8 h-8 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-blue-200">
-              CL
+    <div className="min-h-screen pb-20">
+      {/* HEADER GLASSMORPHISM */}
+      <header className="sticky top-0 z-50 glass border-b border-slate-200/50 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-3 cursor-pointer group" onClick={handleBackToModes}>
+            <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30 group-hover:scale-105 transition-transform">
+              <Award className="w-6 h-6" />
             </div>
-            <h1 className="font-bold text-slate-800 text-lg tracking-tight">
-              Costo Laboral <span className="text-slate-400 font-normal">| Bolivia 2025</span>
-            </h1>
+            <div>
+              <h1 className="font-bold text-slate-800 text-lg tracking-tight leading-tight">
+                Costo Laboral
+              </h1>
+              <p className="text-xs text-slate-500 font-medium">Bolivia 2025</p>
+            </div>
           </div>
+          
           {mode && (
-            <div className="flex items-center gap-4">
-              <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-50 rounded-full border border-slate-200">
-                <span className={`w-2 h-2 rounded-full bg-${mode === 'single' ? 'blue' : mode === 'predictive' ? 'purple' : 'emerald'}-500 animate-pulse`}/>
-                <span className="text-xs font-medium text-slate-600 uppercase tracking-wider">
-                  {mode === 'single' ? 'Cálculo Simple' : mode === 'predictive' ? 'Predictivo' : 'Precierre'}
+            <div className="flex items-center gap-4 animate-enter">
+              <button 
+                onClick={handleBackToModes}
+                className="hidden md:flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Cambiar Modo
+              </button>
+              <div className="px-4 py-1.5 bg-slate-100 rounded-full border border-slate-200 flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full animate-pulse ${
+                  mode === 'single' ? 'bg-blue-500' : mode === 'predictive' ? 'bg-purple-500' : 'bg-emerald-500'
+                }`}/>
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                  {mode === 'single' ? 'Simple' : mode === 'predictive' ? 'Predictivo' : 'Precierre'}
                 </span>
               </div>
             </div>
@@ -317,96 +291,93 @@ const App = () => {
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* MAIN CONTENT */}
       <main>
         {!mode ? (
           <ModeSelector onSelectMode={handleModeSelect} />
         ) : (
-          <div className="max-w-7xl mx-auto px-4 mt-8">
-            {/* Steps Rendering Logic */}
+          <div className="max-w-7xl mx-auto px-6 mt-10 animate-enter">
             
-            {/* PASO 1: SUBIDA DE ARCHIVOS */}
-            {currentStep === 1 && (
-              <FileUpload 
-                mode={mode} 
-                onFileUpload={handleFileUpload} 
-                onMultiUpload={handleMultiFileUpload}
-                isLoading={isLoading}
-              />
-            )}
+            {/* WRAPPER BLANCO ELEGANTE PARA STEPS */}
+            <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/60 border border-slate-100 p-8 md:p-12 min-h-[600px]">
+              
+              {currentStep === 1 && (
+                <FileUpload 
+                  mode={mode} 
+                  onFileUpload={handleFileUpload} 
+                  onMultiUpload={handleMultiFileUpload}
+                  isLoading={isLoading}
+                />
+              )}
 
-            {/* PASO 2: MAPEO DE COLUMNAS */}
-            {currentStep === 2 && (
-              <ColumnMapping 
-                headers={mode === 'single' ? fileData?.headers : multiFilesData[0]?.headers}
-                mapping={columnMapping}
-                onChange={setColumnMapping}
-                onConfirm={handleValidate}
-                onBack={handlePrevStep}
-              />
-            )}
+              {currentStep === 2 && (
+                <ColumnMapping 
+                  headers={mode === 'single' ? fileData?.headers : multiFilesData[0]?.headers}
+                  mapping={columnMapping}
+                  onChange={setColumnMapping}
+                  onConfirm={handleValidate}
+                  onBack={handlePrevStep}
+                />
+              )}
 
-            {/* PASO 3: CONFIGURACIÓN (Solo Single) o PROCESO (Multi) */}
-            {currentStep === 3 && (
-               mode === 'single' ? (
-                 <CalculationConfig 
-                   config={config} 
-                   setConfig={setConfig} 
-                   onCalculate={handleCalculate}
-                   onBack={handlePrevStep}
-                 />
-               ) : (
-                 // Para Multi, saltamos directo a calcular
-                 <div className="text-center py-20 animate-fade-in">
-                   <h3 className="text-2xl font-bold text-slate-700 mb-4">Procesando Periodos...</h3>
-                   <p className="text-slate-500 mb-8">Estamos analizando la información histórica.</p>
-                   <button onClick={handleCalculate} className="btn-primary mx-auto">
-                     Continuar al Análisis
-                   </button>
-                 </div>
-               )
-            )}
+              {currentStep === 3 && (
+                 mode === 'single' ? (
+                   <CalculationConfig 
+                     config={config} 
+                     setConfig={setConfig} 
+                     onCalculate={handleCalculate}
+                     onBack={handlePrevStep}
+                   />
+                 ) : (
+                   <div className="flex flex-col items-center justify-center h-96 text-center">
+                     <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
+                        <TrendingUp className="w-10 h-10 text-blue-600 animate-pulse" />
+                     </div>
+                     <h3 className="text-2xl font-bold text-slate-800 mb-2">Procesando Información Histórica</h3>
+                     <p className="text-slate-500 mb-8 max-w-md">
+                       Estamos normalizando los datos de {multiFilesData.length} períodos para generar el análisis.
+                     </p>
+                     <button onClick={handleCalculate} className="btn-primary">
+                       Generar Análisis
+                     </button>
+                   </div>
+                 )
+              )}
 
-            {/* RESULTADOS SINGLE */}
-            {mode === 'single' && currentStep === 4 && results && (
-              <Results 
-                results={results} 
-                onBack={handlePrevStep}
-                onNewCalculation={handleBackToModes}
-              />
-            )}
+              {/* RESULTADOS OCUPAN TODO EL ANCHO (Fuera del wrapper si se desea, pero aquí dentro se ve limpio) */}
+              {mode === 'single' && currentStep === 4 && results && (
+                <Results 
+                  results={results} 
+                  onBack={handlePrevStep}
+                  onNewCalculation={handleBackToModes}
+                />
+              )}
 
-            {/* FLUJO PREDICTIVO: AUSENCIAS (Paso 4 real tras cálculo interno) */}
-            {mode === 'predictive' && currentStep === 4 && (
-              <AbsenceUpload 
-                 onAbsenceUpload={handleAbsenceUpload}
-                 absenceData={absenceData}
-                 onNext={handleRunPredictiveAnalysis}
-                 onSkip={handleRunPredictiveAnalysis}
-                 isLoading={isLoadingAbsence}
-              />
-            )}
+              {mode === 'predictive' && currentStep === 4 && (
+                <AbsenceUpload 
+                   onAbsenceUpload={handleAbsenceUpload}
+                   absenceData={absenceData}
+                   onNext={handleRunPredictiveAnalysis}
+                   onSkip={handleRunPredictiveAnalysis}
+                   isLoading={isLoadingAbsence}
+                />
+              )}
 
-            {/* RESULTADOS PREDICTIVO */}
-            {mode === 'predictive' && currentStep === 5 && analysis && (
-              <PredictiveAnalysis 
-                analysis={analysis} 
-                onNewAnalysis={handleBackToModes}
-                onExportExcel={handleExportExcel}
-                onExportPDF={handleExportPDF}
-              />
-            )}
+              {mode === 'predictive' && currentStep === 5 && analysis && (
+                <PredictiveAnalysis 
+                  analysis={analysis} 
+                  onNewAnalysis={handleBackToModes}
+                />
+              )}
 
-            {/* RESULTADOS PRECIERRE */}
-            {mode === 'precierre' && currentStep === 4 && precierreAnalysis && (
-              <PrecierreAnalysis 
-                analysis={precierreAnalysis}
-                periodsData={multiFilesData}
-                onNewAnalysis={handleBackToModes}
-                onExportExcel={handleExportExcel}
-                onExportPDF={handleExportPDF}
-              />
-            )}
+              {mode === 'precierre' && currentStep === 4 && precierreAnalysis && (
+                <PrecierreAnalysis 
+                  analysis={precierreAnalysis}
+                  periodsData={multiFilesData}
+                  onNewAnalysis={handleBackToModes}
+                />
+              )}
+            </div>
           </div>
         )}
       </main>

@@ -1,46 +1,80 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Estilos Globales: Look & Feel "Enterprise" limpio */
+/* === GLOBAL STYLES === */
 body {
-  background-color: #f8fafc; /* Slate-50: Un gris muy suave */
-  color: #1e293b; /* Slate-800: Texto oscuro profesional */
+  font-family: 'Inter', sans-serif;
+  /* Fondo moderno con degradado sutil para dar profundidad */
+  background: radial-gradient(circle at 50% 0%, #f1f5f9 0%, #e2e8f0 100%);
+  color: #0f172a; /* Slate-900: Más contraste que antes */
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
 }
 
-/* Scrollbar Personalizado (Más fino y moderno) */
+/* === SCROLLBAR MODERNO === */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
-
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 4px;
+  background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 4px;
-  transition: background 0.2s;
+  border-radius: 10px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
-/* Clases de utilidad para componentes comunes */
+/* === CLASES DE UTILIDAD PREMIUM === */
+
+/* Efecto Cristal (Glassmorphism) */
+.glass {
+  @apply bg-white/70 backdrop-blur-lg border border-white/50 shadow-sm;
+}
+
+.glass-card {
+  @apply bg-white/80 backdrop-blur-md border border-white/60 shadow-xl rounded-3xl;
+}
+
+/* Botón Principal Mejorado */
 .btn-primary {
-  @apply flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-semibold shadow-lg hover:bg-slate-800 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 active:scale-95;
+  @apply flex items-center justify-center gap-2 px-8 py-3.5 
+         bg-gradient-to-r from-slate-800 to-slate-900 
+         text-white font-semibold rounded-2xl 
+         shadow-lg shadow-slate-900/20 
+         hover:shadow-xl hover:shadow-slate-900/30 hover:-translate-y-0.5 
+         active:scale-95 transition-all duration-300;
 }
 
+/* Botón Secundario */
+.btn-secondary {
+  @apply flex items-center justify-center gap-2 px-6 py-3.5
+         bg-white text-slate-700 font-medium rounded-2xl
+         border border-slate-200 shadow-sm
+         hover:bg-slate-50 hover:border-slate-300
+         transition-all duration-200;
+}
+
+/* Inputs más limpios */
 .input-field {
-  @apply w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all;
+  @apply w-full px-5 py-3.5 rounded-xl 
+         bg-white border border-slate-200 
+         text-slate-700 placeholder-slate-400
+         focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 
+         outline-none transition-all duration-200 shadow-sm;
 }
 
-/* Animaciones globales */
-.animate-fade-in {
-  @apply opacity-0 animate-[fadeIn_0.5s_ease-out_forwards];
+/* Animación de entrada suave */
+.animate-enter {
+  animation: enter 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes enter {
+  0% { opacity: 0; transform: translateY(10px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
 }
