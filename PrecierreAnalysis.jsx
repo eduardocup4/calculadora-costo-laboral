@@ -152,7 +152,6 @@ const VariationBadge = ({ value, showPercent = false }) => {
 const PrecierreAnalysis = ({
   analysis,
   periodsData,
-  columnMapping,
   onExportExcel,
   onExportPDF,
   onNewAnalysis
@@ -162,7 +161,26 @@ const PrecierreAnalysis = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMovimiento, setFilterMovimiento] = useState('');
 
-  if (!analysis || !periodsData || periodsData.length < 2) {
+  // 1. ADAPTADOR DE DATOS (CRÍTICO: Lógica Senior)
+  const { 
+    detalles = {} 
+  } = analysis || {};
+
+  const { 
+    altas = [], 
+    bajas = [], 
+    cambiosCargo = [], 
+    cambiosArea = [], 
+    variacionesSalariales = [] 
+  } = detalles;
+
+  // Calculamos las series de tiempo desde periodsData para los gráficos
+  const sortedPeriods = useMemo(() => {
+    if (!periodsData) return [];
+    return [...periodsData].sort((a, b) => (a.year * 100 + a.month) - (b.year * 100 + b.month));
+  }, [periodsData]);
+
+  if (!analysis || !sortedPeriods || sortedPeriods.length < 2) {
     return (
       <div className="text-center py-20">
         <AlertCircle className="w-16 h-16 text-slate-300 mx-auto mb-4" />
@@ -171,44 +189,11 @@ const PrecierreAnalysis = ({
     );
   }
 
-  const tabs = [
-    { id: 'resumen', label: 'Resumen', icon: PieChart },
-    { id: 'variaciones', label: 'Variaciones por Persona', icon: Users },
-    { id: 'movimientos', label: 'Altas, Bajas y Cambios', icon: GitCompare },
-  ];
+  // Mapeamos los datos de períodos para los gráficos
+  const periodLabels = sortedPeriods.map(p => `${MONTHS[p.month - 1]} ${p.year}`);
+  const headcountByPeriod = sortedPeriods.map(p => p.results.employeeCount);
+  const totalGanadoByPeriod = sortedPeriods.map(p => p.results.totals.totalGanado);
 
-  const {
-    periods,
-    headcountByPeriod,
-    totalGanadoByPeriod,
-    variacionPersonal,
-    altas,
-    bajas,
-    cambiosCargo,
-    cambiosArea,
-    variacionesSalariales,
-  } = analysis;
-
-  // Variables disponibles para comparar
-  const variablesDisponibles = [
-    { key: 'totalGanado', label: 'Total Ganado' },
-    { key: 'haberBasico', label: 'Haber Básico' },
-    { key: 'bonoAntiguedad', label: 'Bono Antigüedad' },
-    { key: 'cargo', label: 'Cargo' },
-    { key: 'area', label: 'Área' },
-  ];
-
-  // Filtrar variaciones de personas
-  const filteredVariaciones = useMemo(() => {
-    return variacionPersonal.filter(v => {
-      const matchSearch = !searchTerm || 
-        v.nombre?.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchSearch;
-    });
-  }, [variacionPersonal, searchTerm]);
-
-  // Períodos formateados
-  const periodLabels = periods.map(p => `${MONTHS[p.month - 1]} ${p.year}`);
   const primerPeriodo = periodLabels[0];
   const ultimoPeriodo = periodLabels[periodLabels.length - 1];
 
@@ -219,6 +204,40 @@ const PrecierreAnalysis = ({
     ? ((variacionTotalGanado / totalGanadoByPeriod[0]) * 100)
     : 0;
 
+  // Adaptamos variacionesSalariales para que coincida con las columnas de la tabla UI
+  // El nuevo utils devuelve { anterior, nuevo, diff, pct }
+  // La UI espera { valorInicial, valorFinal, variacion, variacionPct }
+  const formattedVariations = useMemo(() => {
+    return variacionesSalariales.map(v => ({
+      ...v,
+      valorInicial: v.anterior,
+      valorFinal: v.nuevo,
+      variacion: v.diff,
+      variacionPct: v.pct,
+      area: v.area || 'General' // Fallback si no viene área
+    }));
+  }, [variacionesSalariales]);
+
+  // Filtrar variaciones de personas
+  const filteredVariaciones = useMemo(() => {
+    return formattedVariations.filter(v => {
+      const matchSearch = !searchTerm || 
+        v.nombre?.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchSearch;
+    });
+  }, [formattedVariations, searchTerm]);
+
+  const tabs = [
+    { id: 'resumen', label: 'Resumen', icon: PieChart },
+    { id: 'variaciones', label: 'Variaciones por Persona', icon: Users },
+    { id: 'movimientos', label: 'Altas, Bajas y Cambios', icon: GitCompare },
+  ];
+
+  // Variables disponibles para comparar (simplificado a lo que tenemos en variacionesSalariales)
+  const variablesDisponibles = [
+    { key: 'totalGanado', label: 'Total Ganado' }
+  ];
+
   // Columnas para tabla de variaciones por persona
   const variacionColumns = [
     { key: 'nombre', label: 'Nombre', render: (v) => <span className="font-medium text-slate-800">{v}</span> },
@@ -226,41 +245,27 @@ const PrecierreAnalysis = ({
     { key: 'area', label: 'Área' },
     { 
       key: 'valorInicial', 
-      label: `${variablesDisponibles.find(v => v.key === selectedVariable)?.label} Inicial`, 
+      label: 'Anterior', 
       align: 'right',
-      render: (v) => selectedVariable.includes('cargo') || selectedVariable.includes('area') 
-        ? v 
-        : formatCurrency(v || 0)
+      render: (v) => formatCurrency(v || 0)
     },
     { 
       key: 'valorFinal', 
-      label: `${variablesDisponibles.find(v => v.key === selectedVariable)?.label} Final`, 
+      label: 'Actual', 
       align: 'right',
-      render: (v) => selectedVariable.includes('cargo') || selectedVariable.includes('area')
-        ? v 
-        : formatCurrency(v || 0)
+      render: (v) => formatCurrency(v || 0)
     },
     { 
       key: 'variacion', 
-      label: 'Variación', 
+      label: 'Diferencia', 
       align: 'right',
-      render: (v, row) => {
-        if (selectedVariable.includes('cargo') || selectedVariable.includes('area')) {
-          return row.valorInicial !== row.valorFinal ? (
-            <span className="text-amber-600 font-semibold">Cambió</span>
-          ) : '-';
-        }
-        return <VariationBadge value={v} />;
-      }
+      render: (v) => <VariationBadge value={v} />
     },
     { 
       key: 'variacionPct', 
       label: '% Var', 
       align: 'right',
-      render: (v, row) => {
-        if (selectedVariable.includes('cargo') || selectedVariable.includes('area')) return '-';
-        return <VariationBadge value={v} showPercent />;
-      }
+      render: (v) => <VariationBadge value={v} showPercent />
     },
   ];
 
@@ -288,7 +293,6 @@ const PrecierreAnalysis = ({
         </span>
       );
     }},
-    { key: 'periodo', label: 'Período' },
     { key: 'detalle', label: 'Detalle' },
   ];
 
@@ -296,17 +300,21 @@ const PrecierreAnalysis = ({
   const todosMovimientos = useMemo(() => {
     const movs = [];
     
-    altas?.forEach(a => movs.push({ ...a, tipo: 'alta', detalle: `Ingreso en ${a.periodo}` }));
-    bajas?.forEach(b => movs.push({ ...b, tipo: 'baja', detalle: `Salida en ${b.periodo}` }));
+    // Asumimos que Altas son del periodo actual
+    altas?.forEach(a => movs.push({ ...a, tipo: 'alta', detalle: 'Nuevo Ingreso' }));
+    // Asumimos que Bajas son del periodo anterior (no están en actual)
+    bajas?.forEach(b => movs.push({ ...b, tipo: 'baja', detalle: 'Desvinculación' }));
+    
     cambiosCargo?.forEach(c => movs.push({ 
       ...c, 
       tipo: 'cambio_cargo', 
-      detalle: `${c.cargoAnterior} → ${c.cargoNuevo}` 
+      detalle: `${c.anterior} → ${c.nuevo}` 
     }));
+    
     cambiosArea?.forEach(c => movs.push({ 
       ...c, 
       tipo: 'cambio_area', 
-      detalle: `${c.areaAnterior} → ${c.areaNueva}` 
+      detalle: `${c.anterior} → ${c.nuevo}` 
     }));
     
     return movs.filter(m => {
@@ -332,7 +340,7 @@ const PrecierreAnalysis = ({
                 Análisis de Precierre
               </h2>
               <p className="text-amber-100 text-lg">
-                Comparando {periods.length} períodos: {primerPeriodo} → {ultimoPeriodo}
+                Comparando {sortedPeriods.length} períodos: {primerPeriodo} → {ultimoPeriodo}
               </p>
             </div>
 
@@ -530,7 +538,7 @@ const PrecierreAnalysis = ({
           </div>
 
           {/* Top variaciones salariales */}
-          {variacionesSalariales && variacionesSalariales.length > 0 && (
+          {formattedVariations && formattedVariations.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
               <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-amber-600" />
@@ -543,14 +551,14 @@ const PrecierreAnalysis = ({
                       <th className="px-4 py-3 text-left font-semibold text-slate-600">#</th>
                       <th className="px-4 py-3 text-left font-semibold text-slate-600">Nombre</th>
                       <th className="px-4 py-3 text-left font-semibold text-slate-600">Cargo</th>
-                      <th className="px-4 py-3 text-right font-semibold text-slate-600">Inicial</th>
-                      <th className="px-4 py-3 text-right font-semibold text-slate-600">Final</th>
+                      <th className="px-4 py-3 text-right font-semibold text-slate-600">Anterior</th>
+                      <th className="px-4 py-3 text-right font-semibold text-slate-600">Actual</th>
                       <th className="px-4 py-3 text-right font-semibold text-slate-600">Variación</th>
                       <th className="px-4 py-3 text-right font-semibold text-slate-600">%</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {variacionesSalariales.slice(0, 10).map((v, i) => (
+                    {formattedVariations.slice(0, 10).map((v, i) => (
                       <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
                         <td className="px-4 py-3">
                           <span className={`w-6 h-6 inline-flex items-center justify-center rounded-full text-xs font-bold ${
@@ -615,8 +623,7 @@ const PrecierreAnalysis = ({
 
           <div className="flex items-center justify-between text-sm text-slate-500">
             <span>
-              Comparando: {variablesDisponibles.find(v => v.key === selectedVariable)?.label} | 
-              {filteredVariaciones.length} empleados
+              Mostrando empleados con variaciones: {filteredVariaciones.length}
             </span>
             <span className="flex items-center gap-1">
               <ArrowUpDown className="w-4 h-4" />

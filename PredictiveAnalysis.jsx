@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import {
   formatCurrency, formatPercent, formatNumber, formatDate, roundTwo,
-  MONTHS, COLORS, CHART_COLORS, BRADFORD_THRESHOLDS
+  MONTHS, COLORS, BRADFORD_THRESHOLDS
 } from './utils.js';
 
 // ============================================================================
@@ -42,6 +42,28 @@ const Footer = () => (
 // ============================================================================
 // COMPONENTES AUXILIARES
 // ============================================================================
+
+const SectionHeader = ({ icon: Icon, title, subtitle, color = 'blue' }) => {
+  const colorClasses = {
+    blue: 'from-blue-500 to-indigo-600',
+    green: 'from-emerald-500 to-teal-600',
+    amber: 'from-amber-500 to-orange-600',
+    red: 'from-red-500 to-rose-600',
+    purple: 'from-purple-500 to-violet-600',
+  };
+
+  return (
+    <div className="flex items-center gap-4 mb-6">
+      <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${colorClasses[color]} flex items-center justify-center shadow-lg`}>
+        <Icon className="w-7 h-7 text-white" />
+      </div>
+      <div>
+        <h3 className="text-xl font-bold text-slate-800">{title}</h3>
+        {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
+      </div>
+    </div>
+  );
+};
 
 const KPICard = ({ title, value, subtitle, icon: Icon, color = 'blue', trend, trendValue }) => {
   const colorClasses = {
@@ -99,28 +121,6 @@ const KPICard = ({ title, value, subtitle, icon: Icon, color = 'blue', trend, tr
   );
 };
 
-const SectionHeader = ({ icon: Icon, title, subtitle, color = 'blue' }) => {
-  const colorClasses = {
-    blue: 'from-blue-500 to-indigo-600',
-    green: 'from-emerald-500 to-teal-600',
-    amber: 'from-amber-500 to-orange-600',
-    red: 'from-red-500 to-rose-600',
-    purple: 'from-purple-500 to-violet-600',
-  };
-
-  return (
-    <div className="flex items-center gap-4 mb-6">
-      <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${colorClasses[color]} flex items-center justify-center shadow-lg`}>
-        <Icon className="w-7 h-7 text-white" />
-      </div>
-      <div>
-        <h3 className="text-xl font-bold text-slate-800">{title}</h3>
-        {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
-      </div>
-    </div>
-  );
-};
-
 const BradfordBadge = ({ classification }) => {
   const colorMap = {
     emerald: 'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -136,9 +136,12 @@ const BradfordBadge = ({ classification }) => {
     red: '🔴',
   };
 
+  const color = classification?.color || 'emerald';
+  const label = classification?.label || 'Bajo';
+
   return (
-    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${colorMap[classification.color]}`}>
-      {iconMap[classification.color]} {classification.label}
+    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${colorMap[color]}`}>
+      {iconMap[color]} {label}
     </span>
   );
 };
@@ -189,13 +192,52 @@ const ProgressBar = ({ value, max, color = 'blue', showLabel = true }) => {
 
 const PredictiveAnalysis = ({
   analysis,
-  periodsData,
   onExportExcel,
   onExportPDF,
   onNewAnalysis
 }) => {
   const [activeSection, setActiveSection] = useState('dashboard');
   const [expandedTables, setExpandedTables] = useState({});
+
+  // ----------------------------------------------------------------------
+  // 1. ADAPTADOR DE DATOS (CRÍTICO PARA QUE FUNCIONE EL UTILS SENIOR)
+  // ----------------------------------------------------------------------
+  
+  // Extraemos las nuevas estructuras del utils.js Senior
+  const {
+    labels = [],
+    seriesCosto = [],
+    seriesHC = [],
+    forecast = [], // Ahora es un Array
+    absenceStats = null, // Nombre actualizado
+    tendencia = 'Estable',
+    rotacion = { tasaAnualizada: 0, tasaMensualPromedio: 0, totalSalidas: 0, headcountPromedio: 0 },
+    headcountInicial = 0,
+    headcountFinal = 0,
+    ingresos = [],
+    salidas = [],
+    promociones = [],
+    topIncrementos = [],
+    decrementos = [],
+    altaVariabilidad = [],
+    sinCambios = [],
+    totalPeriods = 0,
+    periods = []
+  } = analysis || {};
+
+  // Reconstruimos las variables que tu UI original espera
+  const tendenciaCostoTotal = labels.map((l, i) => ({ periodo: l, valor: seriesCosto[i] || 0 }));
+  const tendenciaHeadcount = labels.map((l, i) => ({ periodo: l, valor: seriesHC[i] || 0 }));
+  const absenceAnalysis = absenceStats; // Alias para compatibilidad
+  
+  // Mockup para antiguedad si no viniera calculada
+  const antiguedadAnalysis = analysis?.antiguedadAnalysis || {
+      promedioAnios: 0,
+      ranges: { "0-2 años": {count: 0}, "2-5 años": {count: 0}, "5+ años": {count: 0} },
+      employeesWithData: 0
+  };
+
+  // ----------------------------------------------------------------------
 
   const toggleTable = (key) => {
     setExpandedTables(prev => ({ ...prev, [key]: !prev[key] }));
@@ -218,9 +260,6 @@ const PredictiveAnalysis = ({
     { id: 'proyecciones', label: 'Proyecciones', icon: TrendingUp },
   ];
 
-  const absenceAnalysis = analysis.absenceAnalysis;
-  const antiguedadAnalysis = analysis.antiguedadAnalysis;
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header Ejecutivo */}
@@ -237,7 +276,7 @@ const PredictiveAnalysis = ({
                 Análisis Predictivo de People Analytics
               </h2>
               <p className="text-slate-400 text-lg">
-                {analysis.totalPeriods} períodos analizados: {analysis.periods?.[0]} → {analysis.periods?.[analysis.periods.length - 1]}
+                {totalPeriods} períodos analizados: {labels[0]} → {labels[labels.length - 1]}
               </p>
             </div>
 
@@ -264,8 +303,8 @@ const PredictiveAnalysis = ({
                 <Users className="w-5 h-5 text-blue-400" />
                 <span className="text-slate-400 text-xs">Headcount Actual</span>
               </div>
-              <p className="text-2xl font-bold">{analysis.headcountFinal}</p>
-              <p className="text-xs text-slate-400">Inicial: {analysis.headcountInicial}</p>
+              <p className="text-2xl font-bold">{headcountFinal}</p>
+              <p className="text-xs text-slate-400">Inicial: {headcountInicial}</p>
             </div>
             
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
@@ -273,7 +312,7 @@ const PredictiveAnalysis = ({
                 <UserPlus className="w-5 h-5 text-emerald-400" />
                 <span className="text-slate-400 text-xs">Ingresos</span>
               </div>
-              <p className="text-2xl font-bold text-emerald-400">{analysis.ingresos?.length || 0}</p>
+              <p className="text-2xl font-bold text-emerald-400">{ingresos?.length || 0}</p>
             </div>
             
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
@@ -281,7 +320,7 @@ const PredictiveAnalysis = ({
                 <UserMinus className="w-5 h-5 text-red-400" />
                 <span className="text-slate-400 text-xs">Salidas</span>
               </div>
-              <p className="text-2xl font-bold text-red-400">{analysis.salidas?.length || 0}</p>
+              <p className="text-2xl font-bold text-red-400">{salidas?.length || 0}</p>
             </div>
             
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
@@ -289,15 +328,15 @@ const PredictiveAnalysis = ({
                 <RefreshCw className="w-5 h-5 text-amber-400" />
                 <span className="text-slate-400 text-xs">Rotación Anualizada</span>
               </div>
-              <p className="text-2xl font-bold text-amber-400">{analysis.rotacion?.tasaAnualizada || 0}%</p>
+              <p className="text-2xl font-bold text-amber-400">{rotacion?.tasaAnualizada || 0}%</p>
             </div>
             
             <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="w-5 h-5 text-purple-400" />
-                <span className="text-slate-400 text-xs">Antigüedad Prom.</span>
+                <span className="text-slate-400 text-xs">Tendencia</span>
               </div>
-              <p className="text-2xl font-bold text-purple-400">{antiguedadAnalysis?.promedioAnios || 0} años</p>
+              <p className="text-2xl font-bold text-purple-400">{tendencia}</p>
             </div>
           </div>
         </div>
@@ -331,8 +370,8 @@ const PredictiveAnalysis = ({
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Gráfico de tendencia */}
               <div className="space-y-4">
-                {analysis.tendenciaCostoTotal?.map((item, i) => {
-                  const maxVal = Math.max(...analysis.tendenciaCostoTotal.map(t => t.valor));
+                {tendenciaCostoTotal.map((item, i) => {
+                  const maxVal = Math.max(...tendenciaCostoTotal.map(t => t.valor));
                   const pct = maxVal > 0 ? (item.valor / maxVal) * 100 : 0;
                   return (
                     <div key={i}>
@@ -354,8 +393,8 @@ const PredictiveAnalysis = ({
               {/* Headcount por período */}
               <div className="space-y-4">
                 <h4 className="font-semibold text-slate-700 mb-3">Evolución del Headcount</h4>
-                {analysis.tendenciaHeadcount?.map((item, i) => {
-                  const maxVal = Math.max(...analysis.tendenciaHeadcount.map(t => t.valor));
+                {tendenciaHeadcount.map((item, i) => {
+                  const maxVal = Math.max(...tendenciaHeadcount.map(t => t.valor));
                   const pct = maxVal > 0 ? (item.valor / maxVal) * 100 : 0;
                   return (
                     <div key={i}>
@@ -380,28 +419,28 @@ const PredictiveAnalysis = ({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <KPICard
               title="Promociones"
-              value={analysis.promociones?.length || 0}
+              value={promociones?.length || 0}
               subtitle="Cambios de cargo detectados"
               icon={Award}
               color="purple"
             />
             <KPICard
               title="Incrementos Salariales"
-              value={analysis.incrementos?.length || 0}
+              value={topIncrementos?.length || 0}
               subtitle="Empleados con aumento"
               icon={TrendingUp}
               color="green"
             />
             <KPICard
               title="Decrementos"
-              value={analysis.decrementos?.length || 0}
+              value={decrementos?.length || 0}
               subtitle="Empleados con reducción"
               icon={TrendingDown}
               color="red"
             />
             <KPICard
               title="Sin Cambios"
-              value={analysis.sinCambios?.length || 0}
+              value={sinCambios?.length || 0}
               subtitle="Salario estable"
               icon={Minus}
               color="slate"
@@ -475,33 +514,33 @@ const PredictiveAnalysis = ({
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
                 <p className="text-sm text-amber-700 mb-1">Tasa Mensual Promedio</p>
-                <p className="text-3xl font-bold text-amber-800">{analysis.rotacion?.tasaMensualPromedio || 0}%</p>
+                <p className="text-3xl font-bold text-amber-800">{rotacion?.tasaMensualPromedio || 0}%</p>
               </div>
               <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-xl p-4 border border-red-200">
                 <p className="text-sm text-red-700 mb-1">Tasa Anualizada</p>
-                <p className="text-3xl font-bold text-red-800">{analysis.rotacion?.tasaAnualizada || 0}%</p>
+                <p className="text-3xl font-bold text-red-800">{rotacion?.tasaAnualizada || 0}%</p>
               </div>
               <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl p-4 border border-slate-200">
                 <p className="text-sm text-slate-600 mb-1">Total Salidas</p>
-                <p className="text-3xl font-bold text-slate-800">{analysis.rotacion?.totalSalidas || 0}</p>
+                <p className="text-3xl font-bold text-slate-800">{rotacion?.totalSalidas || 0}</p>
               </div>
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
                 <p className="text-sm text-blue-700 mb-1">Headcount Promedio</p>
-                <p className="text-3xl font-bold text-blue-800">{analysis.rotacion?.headcountPromedio || 0}</p>
+                <p className="text-3xl font-bold text-blue-800">{rotacion?.headcountPromedio || 0}</p>
               </div>
             </div>
 
             <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-600">
               <p><strong>Fórmula:</strong> (Salidas / Meses) / Headcount Promedio × 100</p>
-              <p className="mt-1">Período analizado: {analysis.rotacion?.mesesAnalizados || 0} meses</p>
+              <p className="mt-1">Período analizado: {rotacion?.mesesAnalizados || 0} meses</p>
             </div>
           </div>
 
           {/* Ingresos */}
-          {analysis.ingresos?.length > 0 && (
+          {ingresos?.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
-                <SectionHeader icon={UserPlus} title="Nuevos Ingresos" subtitle={`${analysis.ingresos.length} incorporaciones`} color="green" />
+                <SectionHeader icon={UserPlus} title="Nuevos Ingresos" subtitle={`${ingresos.length} incorporaciones`} color="green" />
                 <button onClick={() => toggleTable('ingresos')} className="p-2 hover:bg-slate-100 rounded-lg">
                   {expandedTables.ingresos ? <ChevronUp /> : <ChevronDown />}
                 </button>
@@ -519,7 +558,7 @@ const PredictiveAnalysis = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {analysis.ingresos.slice(0, 15).map((emp, i) => (
+                      {ingresos.slice(0, 15).map((emp, i) => (
                         <tr key={i} className="border-t border-slate-100 hover:bg-emerald-50">
                           <td className="px-4 py-3 font-medium text-slate-800">{emp.nombre}</td>
                           <td className="px-4 py-3 text-slate-600">{emp.cargo}</td>
@@ -533,19 +572,16 @@ const PredictiveAnalysis = ({
                       ))}
                     </tbody>
                   </table>
-                  {analysis.ingresos.length > 15 && (
-                    <p className="text-center text-sm text-slate-500 py-3">... y {analysis.ingresos.length - 15} más</p>
-                  )}
                 </div>
               )}
             </div>
           )}
 
           {/* Salidas */}
-          {analysis.salidas?.length > 0 && (
+          {salidas?.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
               <div className="flex items-center justify-between mb-4">
-                <SectionHeader icon={UserMinus} title="Salidas de Personal" subtitle={`${analysis.salidas.length} desvinculaciones`} color="red" />
+                <SectionHeader icon={UserMinus} title="Salidas de Personal" subtitle={`${salidas.length} desvinculaciones`} color="red" />
                 <button onClick={() => toggleTable('salidas')} className="p-2 hover:bg-slate-100 rounded-lg">
                   {expandedTables.salidas ? <ChevronUp /> : <ChevronDown />}
                 </button>
@@ -563,7 +599,7 @@ const PredictiveAnalysis = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {analysis.salidas.slice(0, 15).map((emp, i) => (
+                      {salidas.slice(0, 15).map((emp, i) => (
                         <tr key={i} className="border-t border-slate-100 hover:bg-red-50">
                           <td className="px-4 py-3 font-medium text-slate-800">{emp.nombre}</td>
                           <td className="px-4 py-3 text-slate-600">{emp.cargo}</td>
@@ -577,79 +613,8 @@ const PredictiveAnalysis = ({
                       ))}
                     </tbody>
                   </table>
-                  {analysis.salidas.length > 15 && (
-                    <p className="text-center text-sm text-slate-500 py-3">... y {analysis.salidas.length - 15} más</p>
-                  )}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Antigüedad */}
-          {antiguedadAnalysis && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-              <SectionHeader icon={Clock} title="Distribución por Antigüedad" subtitle={`Promedio: ${antiguedadAnalysis.promedioAnios} años`} color="purple" />
-              
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-                {Object.entries(antiguedadAnalysis.ranges).map(([range, data]) => (
-                  <div key={range} className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-4 border border-purple-200 text-center">
-                    <p className="text-3xl font-bold text-purple-800">{data.count}</p>
-                    <p className="text-sm text-purple-600 font-medium">{range}</p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Gráfico de distribución */}
-              <div className="space-y-3">
-                {Object.entries(antiguedadAnalysis.ranges).map(([range, data]) => {
-                  const pct = antiguedadAnalysis.employeesWithData > 0 
-                    ? (data.count / antiguedadAnalysis.employeesWithData) * 100 
-                    : 0;
-                  return (
-                    <div key={range}>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="text-slate-600 font-medium">{range}</span>
-                        <span className="text-slate-800 font-bold">{data.count} ({roundTwo(pct)}%)</span>
-                      </div>
-                      <ProgressBar value={pct} max={100} color="purple" showLabel={false} />
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Promociones */}
-          {analysis.promociones?.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-              <SectionHeader icon={Award} title="Promociones Detectadas" subtitle={`${analysis.promociones.length} cambios de cargo`} color="purple" />
-              
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Nombre</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Cargo Anterior</th>
-                      <th className="text-center px-4 py-3 font-semibold text-slate-600"></th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Cargo Actual</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Área</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {analysis.promociones.map((emp, i) => (
-                      <tr key={i} className="border-t border-slate-100 hover:bg-purple-50">
-                        <td className="px-4 py-3 font-medium text-slate-800">{emp.nombre}</td>
-                        <td className="px-4 py-3 text-slate-600">{emp.cargoAnterior}</td>
-                        <td className="px-4 py-3 text-center">
-                          <ArrowUpRight className="w-5 h-5 text-purple-500 mx-auto" />
-                        </td>
-                        <td className="px-4 py-3 font-semibold text-purple-700">{emp.cargoActual}</td>
-                        <td className="px-4 py-3 text-slate-600">{emp.area}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </div>
           )}
         </div>
@@ -659,7 +624,7 @@ const PredictiveAnalysis = ({
       {activeSection === 'salarial' && (
         <div className="space-y-6">
           {/* Top 10 Incrementos */}
-          {analysis.topIncrementos?.length > 0 && (
+          {topIncrementos?.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
               <SectionHeader icon={TrendingUp} title="Top 10 Mayores Incrementos" subtitle="Variación salarial positiva" color="green" />
               
@@ -677,7 +642,7 @@ const PredictiveAnalysis = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {analysis.topIncrementos.map((emp, i) => (
+                    {topIncrementos.map((emp, i) => (
                       <tr key={i} className="border-t border-slate-100 hover:bg-emerald-50">
                         <td className="px-4 py-3">
                           <span className="w-6 h-6 inline-flex items-center justify-center bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
@@ -703,9 +668,9 @@ const PredictiveAnalysis = ({
           )}
 
           {/* Decrementos */}
-          {analysis.decrementos?.length > 0 && (
+          {decrementos?.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-              <SectionHeader icon={TrendingDown} title="Decrementos Salariales" subtitle={`${analysis.decrementos.length} casos detectados`} color="red" />
+              <SectionHeader icon={TrendingDown} title="Decrementos Salariales" subtitle={`${decrementos.length} casos detectados`} color="red" />
               
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -720,7 +685,7 @@ const PredictiveAnalysis = ({
                     </tr>
                   </thead>
                   <tbody>
-                    {analysis.decrementos.slice(0, 10).map((emp, i) => (
+                    {decrementos.slice(0, 10).map((emp, i) => (
                       <tr key={i} className="border-t border-slate-100 hover:bg-red-50">
                         <td className="px-4 py-3 font-medium text-slate-800">{emp.nombre}</td>
                         <td className="px-4 py-3 text-slate-600">{emp.cargo}</td>
@@ -730,38 +695,6 @@ const PredictiveAnalysis = ({
                         <td className="px-4 py-3 text-right">
                           <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">
                             {emp.variacionPct}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Alta Variabilidad */}
-          {analysis.altaVariabilidad?.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-              <SectionHeader icon={Activity} title="Alta Variabilidad Salarial" subtitle="Coeficiente de variación > 10%" color="amber" />
-              
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Nombre</th>
-                      <th className="text-left px-4 py-3 font-semibold text-slate-600">Cargo</th>
-                      <th className="text-right px-4 py-3 font-semibold text-slate-600">Coef. Variación</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {analysis.altaVariabilidad.slice(0, 10).map((emp, i) => (
-                      <tr key={i} className="border-t border-slate-100 hover:bg-amber-50">
-                        <td className="px-4 py-3 font-medium text-slate-800">{emp.nombre}</td>
-                        <td className="px-4 py-3 text-slate-600">{emp.cargo}</td>
-                        <td className="px-4 py-3 text-right">
-                          <span className="px-2 py-1 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">
-                            {emp.coefVariacion}%
                           </span>
                         </td>
                       </tr>
@@ -828,115 +761,24 @@ const PredictiveAnalysis = ({
                       </tr>
                     </thead>
                     <tbody>
-                      {absenceAnalysis.bradfordByEmployee
-                        .filter(b => b.score > 0)
+                      {absenceAnalysis.list // Ahora usamos "list" en vez de "bradfordByEmployee" por consistencia de utils
+                         .filter(b => b.score > 0)
                         .slice(0, 20)
                         .map((emp, i) => (
                         <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
                           <td className="px-4 py-3 font-medium text-slate-800">{emp.nombre}</td>
                           <td className="px-4 py-3 text-slate-600">{emp.cargo}</td>
-                          <td className="px-4 py-3 text-center font-semibold">{emp.episodes}</td>
-                          <td className="px-4 py-3 text-center font-semibold">{emp.days}</td>
+                          <td className="px-4 py-3 text-center font-semibold">{emp.frecuencia}</td> {/* actualizado a 'frecuencia' */}
+                          <td className="px-4 py-3 text-center font-semibold">{emp.diasTotales}</td> {/* actualizado a 'diasTotales' */}
                           <td className="px-4 py-3 text-center font-bold text-slate-800">{emp.score}</td>
                           <td className="px-4 py-3 text-center">
-                            <BradfordBadge classification={emp.classification} />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Análisis de Vacaciones */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                <SectionHeader icon={Sun} title="Análisis de Vacaciones" subtitle="Según normativa boliviana" color="green" />
-                
-                <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-xl p-4 mb-6 border border-emerald-200">
-                  <p className="text-sm text-emerald-800 mb-2"><strong>Días según antigüedad (Ley General del Trabajo):</strong></p>
-                  <div className="flex flex-wrap gap-4 text-xs">
-                    <span>1-5 años: 15 días</span>
-                    <span>5-10 años: 20 días</span>
-                    <span>10+ años: 30 días</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-slate-50 rounded-xl p-4 text-center">
-                    <p className="text-3xl font-bold text-slate-800">{absenceAnalysis.summary.totalVacationDays}</p>
-                    <p className="text-xs text-slate-500">Días Tomados Total</p>
-                  </div>
-                  <div className="bg-emerald-50 rounded-xl p-4 text-center border border-emerald-200">
-                    <p className="text-3xl font-bold text-emerald-600">{absenceAnalysis.summary.consumoSaludableCount}</p>
-                    <p className="text-xs text-emerald-600">Consumo Saludable (&gt;70%)</p>
-                  </div>
-                  <div className="bg-amber-50 rounded-xl p-4 text-center border border-amber-200">
-                    <p className="text-3xl font-bold text-amber-600">{absenceAnalysis.summary.consumoAtencionCount}</p>
-                    <p className="text-xs text-amber-600">Atención (50-70%)</p>
-                  </div>
-                  <div className="bg-red-50 rounded-xl p-4 text-center border border-red-200">
-                    <p className="text-3xl font-bold text-red-600">{absenceAnalysis.summary.consumoCriticoCount}</p>
-                    <p className="text-xs text-red-600">Crítico (&lt;50%)</p>
-                  </div>
-                </div>
-
-                {/* Alerta de presencialismo */}
-                {absenceAnalysis.summary.presencialismoCount > 0 && (
-                  <div className="bg-gradient-to-r from-purple-50 to-violet-50 rounded-xl p-4 mb-6 border border-purple-200">
-                    <div className="flex items-center gap-3">
-                      <AlertCircle className="w-6 h-6 text-purple-600" />
-                      <div>
-                        <p className="font-semibold text-purple-800">Alerta de Presencialismo Excesivo</p>
-                        <p className="text-sm text-purple-600">
-                          {absenceAnalysis.summary.presencialismoCount} empleados con menos del 1% de vacaciones tomadas
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Tabla Vacaciones */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className="text-left px-4 py-3 font-semibold text-slate-600">Empleado</th>
-                        <th className="text-left px-4 py-3 font-semibold text-slate-600">Cargo</th>
-                        <th className="text-center px-4 py-3 font-semibold text-slate-600">Antigüedad</th>
-                        <th className="text-center px-4 py-3 font-semibold text-slate-600">Asignados</th>
-                        <th className="text-center px-4 py-3 font-semibold text-slate-600">Tomados</th>
-                        <th className="text-center px-4 py-3 font-semibold text-slate-600">Saldo</th>
-                        <th className="text-center px-4 py-3 font-semibold text-slate-600">% Consumo</th>
-                        <th className="text-center px-4 py-3 font-semibold text-slate-600">Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {absenceAnalysis.vacationAnalysis
-                        .filter(v => v.diasAsignados > 0)
-                        .sort((a, b) => a.porcentajeConsumo - b.porcentajeConsumo)
-                        .slice(0, 20)
-                        .map((emp, i) => (
-                        <tr key={i} className={`border-t border-slate-100 hover:bg-slate-50 ${emp.presencialismo ? 'bg-purple-50' : ''}`}>
-                          <td className="px-4 py-3 font-medium text-slate-800">
-                            {emp.nombre}
-                            {emp.presencialismo && <span className="ml-2 text-purple-600">⚠️</span>}
-                          </td>
-                          <td className="px-4 py-3 text-slate-600">{emp.cargo}</td>
-                          <td className="px-4 py-3 text-center">{emp.antiguedadAnios} años</td>
-                          <td className="px-4 py-3 text-center font-semibold">{emp.diasAsignados}</td>
-                          <td className="px-4 py-3 text-center font-semibold text-emerald-600">{emp.diasTomados}</td>
-                          <td className="px-4 py-3 text-center font-semibold text-amber-600">{emp.saldoPendiente}</td>
-                          <td className="px-4 py-3 text-center">
-                            <div className="w-20 mx-auto">
-                              <ProgressBar 
-                                value={emp.porcentajeConsumo} 
-                                max={100} 
-                                color={emp.consumoStatus.color === 'emerald' ? 'green' : emp.consumoStatus.color === 'amber' ? 'amber' : 'red'}
-                              />
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <VacationStatusBadge status={emp.consumoStatus} />
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold 
+                              ${emp.status === 'Crítico' ? 'bg-red-100 text-red-700' : 
+                                emp.status === 'Alto' ? 'bg-orange-100 text-orange-700' :
+                                emp.status === 'Moderado' ? 'bg-amber-100 text-amber-700' :
+                                'bg-emerald-100 text-emerald-700'}`}>
+                              {emp.status}
+                            </span>
                           </td>
                         </tr>
                       ))}
@@ -962,49 +804,41 @@ const PredictiveAnalysis = ({
       {activeSection === 'proyecciones' && (
         <div className="space-y-6">
           {/* Forecast de Costo */}
-          {analysis.forecast && Object.keys(analysis.forecast).length > 0 && (
+          {forecast && forecast.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
               <SectionHeader icon={Target} title="Proyección de Costo Laboral" subtitle="Forecast basado en tendencia lineal" color="blue" />
               
+              {/* Tarjetas de Proyección Corregidas para Array */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-200">
-                  <p className="text-sm text-blue-700 mb-2">Proyección 3 meses</p>
-                  <p className="text-3xl font-bold text-blue-800">{formatCurrency(analysis.forecast.mes3)}</p>
-                </div>
-                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-5 border border-indigo-200">
-                  <p className="text-sm text-indigo-700 mb-2">Proyección 6 meses</p>
-                  <p className="text-3xl font-bold text-indigo-800">{formatCurrency(analysis.forecast.mes6)}</p>
-                </div>
-                <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-5 border border-purple-200">
-                  <p className="text-sm text-purple-700 mb-2">Proyección 12 meses</p>
-                  <p className="text-3xl font-bold text-purple-800">{formatCurrency(analysis.forecast.mes12)}</p>
-                </div>
+                 {forecast.map((item, index) => (
+                  <div key={index} className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-5 border border-blue-200">
+                    <p className="text-sm text-blue-700 mb-2">{item.label}</p>
+                    <p className="text-3xl font-bold text-blue-800">{formatCurrency(item.valor)}</p>
+                  </div>
+                 ))}
               </div>
 
               <div className={`rounded-xl p-4 ${
-                analysis.forecast.tendencia === 'creciente' 
+                tendencia === 'Alza' 
                   ? 'bg-amber-50 border border-amber-200' 
-                  : analysis.forecast.tendencia === 'decreciente'
+                  : tendencia === 'Baja'
                     ? 'bg-emerald-50 border border-emerald-200'
                     : 'bg-slate-50 border border-slate-200'
               }`}>
                 <div className="flex items-center gap-3">
-                  {analysis.forecast.tendencia === 'creciente' ? (
+                  {tendencia === 'Alza' ? (
                     <TrendingUp className="w-6 h-6 text-amber-600" />
-                  ) : analysis.forecast.tendencia === 'decreciente' ? (
+                  ) : tendencia === 'Baja' ? (
                     <TrendingDown className="w-6 h-6 text-emerald-600" />
                   ) : (
                     <Minus className="w-6 h-6 text-slate-600" />
                   )}
                   <div>
                     <p className={`font-semibold ${
-                      analysis.forecast.tendencia === 'creciente' ? 'text-amber-800' :
-                      analysis.forecast.tendencia === 'decreciente' ? 'text-emerald-800' : 'text-slate-800'
+                      tendencia === 'Alza' ? 'text-amber-800' :
+                      tendencia === 'Baja' ? 'text-emerald-800' : 'text-slate-800'
                     }`}>
-                      Tendencia {analysis.forecast.tendencia}
-                    </p>
-                    <p className="text-sm text-slate-600">
-                      Pendiente mensual: {formatCurrency(analysis.forecast.pendiente)}
+                      Tendencia a la {tendencia}
                     </p>
                   </div>
                 </div>
@@ -1018,14 +852,8 @@ const PredictiveAnalysis = ({
             
             <div className="space-y-4">
               {/* Datos históricos */}
-              {analysis.tendenciaCostoTotal?.map((item, i) => {
-                const allValues = [
-                  ...analysis.tendenciaCostoTotal.map(t => t.valor),
-                  analysis.forecast?.mes3 || 0,
-                  analysis.forecast?.mes6 || 0,
-                  analysis.forecast?.mes12 || 0
-                ];
-                const maxVal = Math.max(...allValues);
+              {tendenciaCostoTotal.map((item, i) => {
+                const maxVal = Math.max(...tendenciaCostoTotal.map(t => t.valor));
                 const pct = maxVal > 0 ? (item.valor / maxVal) * 100 : 0;
                 
                 return (
@@ -1045,31 +873,22 @@ const PredictiveAnalysis = ({
               })}
               
               {/* Proyecciones */}
-              {analysis.forecast && (
+              {forecast && (
                 <>
                   <div className="border-t border-dashed border-slate-300 pt-4 mt-4">
                     <p className="text-xs text-slate-500 mb-3 font-semibold">PROYECCIONES</p>
                   </div>
                   
-                  {[
-                    { label: '+3 meses', value: analysis.forecast.mes3 },
-                    { label: '+6 meses', value: analysis.forecast.mes6 },
-                    { label: '+12 meses', value: analysis.forecast.mes12 },
-                  ].map((proj, i) => {
-                    const allValues = [
-                      ...analysis.tendenciaCostoTotal.map(t => t.valor),
-                      analysis.forecast.mes3,
-                      analysis.forecast.mes6,
-                      analysis.forecast.mes12
-                    ];
-                    const maxVal = Math.max(...allValues);
-                    const pct = maxVal > 0 ? (proj.value / maxVal) * 100 : 0;
+                  {forecast.map((proj, i) => {
+                    // Calculamos porcentaje relativo al histórico para la barra
+                    const maxVal = Math.max(...tendenciaCostoTotal.map(t => t.valor));
+                    const pct = maxVal > 0 ? (proj.valor / maxVal) * 100 : 0;
                     
                     return (
                       <div key={i}>
                         <div className="flex justify-between text-sm mb-1">
                           <span className="text-purple-600 font-medium">{proj.label}</span>
-                          <span className="font-bold text-purple-800">{formatCurrency(proj.value)}</span>
+                          <span className="font-bold text-purple-800">{formatCurrency(proj.valor)}</span>
                         </div>
                         <div className="h-6 bg-purple-100 rounded-full overflow-hidden">
                           <div 
