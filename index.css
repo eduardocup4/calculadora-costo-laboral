@@ -4,13 +4,13 @@
 
 /* Estilos Globales: Look & Feel "Enterprise" limpio */
 body {
-  background-color: #f8fafc; /* Slate-50: Un gris muy suave, mejor que el blanco puro para la vista */
-  color: #1e293b; /* Slate-800: Texto oscuro pero no negro absoluto (más elegante) */
+  background-color: #f8fafc; /* Slate-50: Un gris muy suave */
+  color: #1e293b; /* Slate-800: Texto oscuro profesional */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Personalización del Scrollbar (Más fino y moderno) */
+/* Scrollbar Personalizado (Más fino y moderno) */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -31,12 +31,7 @@ body {
   background: #94a3b8;
 }
 
-/* Utilidades Custom (Safelist para componentes dinámicos) */
-.glass-panel {
-  @apply bg-white/80 backdrop-blur-md border border-white/20 shadow-xl;
-}
-
-/* Clases de utilidad para botones y campos (Estandarización) */
+/* Clases de utilidad para componentes comunes */
 .btn-primary {
   @apply flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-semibold shadow-lg hover:bg-slate-800 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 active:scale-95;
 }
@@ -45,7 +40,7 @@ body {
   @apply w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all;
 }
 
-/* Animaciones globales (aprovechando config de tailwind) */
+/* Animaciones globales */
 .animate-fade-in {
-  animation: fadeIn 0.5s ease-out forwards;
+  @apply opacity-0 animate-[fadeIn_0.5s_ease-out_forwards];
 }
