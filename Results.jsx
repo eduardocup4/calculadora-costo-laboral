@@ -1,11 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import {
   Users, DollarSign, TrendingUp, Building2, Award, RefreshCw,
-  FileSpreadsheet, FileText, ChevronDown, ChevronUp, Download,
-  PieChart, BarChart3, Calculator, ArrowUpDown, ArrowUp, ArrowDown,
-  Filter, Search, Eye, EyeOff
+  FileSpreadsheet, PieChart, BarChart3, Calculator, ArrowUpDown, ArrowUp, ArrowDown,
+  Search
 } from 'lucide-react';
-import { formatCurrency, formatPercent, roundTwo, COLORS } from './utils.js';
+import { formatCurrency, formatPercent, roundTwo } from './utils.js';
 
 // ============================================================================
 // COMPONENTE: HEADER DE SECCIÓN
@@ -20,7 +19,7 @@ const SectionHeader = ({ icon: Icon, title, subtitle, color = 'blue' }) => {
 
   return (
     <div className="flex items-center gap-4 mb-6">
-      <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${colorClasses[color]} flex items-center justify-center shadow-lg`}>
+      <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${colorClasses[color]} flex items-center justify-center shadow-lg shadow-${color}-500/20`}>
         <Icon className="w-6 h-6 text-white" />
       </div>
       <div>
@@ -45,19 +44,19 @@ const KpiCard = ({ title, value, subValue, icon: Icon, color }) => {
   const style = styles[color] || styles.blue;
 
   return (
-    <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all">
+    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
       <div className="flex justify-between items-start mb-4">
         <div className={`p-3 rounded-xl ${style.bg}`}>
           <Icon className={`w-6 h-6 ${style.icon}`} />
         </div>
         {subValue && (
-          <span className="text-xs font-medium text-slate-400 bg-slate-50 px-2 py-1 rounded-full">
+          <span className="text-xs font-medium text-slate-500 bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
             {subValue}
           </span>
         )}
       </div>
       <p className="text-sm text-slate-500 font-medium mb-1">{title}</p>
-      <h4 className={`text-2xl font-bold ${style.text}`}>{value}</h4>
+      <h4 className={`text-3xl font-bold ${style.text}`}>{value}</h4>
     </div>
   );
 };
@@ -71,19 +70,15 @@ const Results = ({ results, onBack, onNewCalculation }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'costoLaboralMensual', direction: 'desc' });
 
-  // Desestructuración segura de los nuevos resultados del utils.js
   const { 
     totals = {}, 
     employees = [], 
-    byArea = [], // Ahora es un array ordenado
+    byArea = [], 
     employeeCount = 0 
   } = results || {};
 
-  // Lógica de ordenamiento y filtrado
   const filteredEmployees = useMemo(() => {
     let data = [...employees];
-    
-    // Filtrar
     if (searchTerm) {
       data = data.filter(e => 
         e.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -91,22 +86,16 @@ const Results = ({ results, onBack, onNewCalculation }) => {
         e.area.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-
-    // Ordenar
     if (sortConfig.key) {
       data.sort((a, b) => {
-        // Manejo de propiedades anidadas (ej: componentes.haberBasico)
         const getValue = (obj, path) => path.split('.').reduce((o, i) => o[i], obj);
-        
         const aVal = getValue(a, sortConfig.key);
         const bVal = getValue(b, sortConfig.key);
-
         if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
         if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
       });
     }
-
     return data;
   }, [employees, searchTerm, sortConfig]);
 
@@ -124,25 +113,19 @@ const Results = ({ results, onBack, onNewCalculation }) => {
       : <ArrowDown className="w-4 h-4 text-blue-600" />;
   };
 
-  // Función para exportar Excel simple (para PDF ya tienes la lógica en App.jsx probablemente, o utils)
-  const exportToExcel = () => {
-    // Implementación básica o llamada al prop si lo pasas desde App
-    alert("Funcionalidad de exportación lista para integrar");
-  };
-
   return (
-    <div className="space-y-8 animate-fade-in pb-20">
+    <div className="space-y-8 animate-enter pb-10">
       
       {/* HEADER DE RESULTADOS */}
       <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500 rounded-full blur-3xl opacity-20 -mr-16 -mt-16"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500 rounded-full blur-3xl opacity-20 -mr-20 -mt-20"></div>
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
           <div>
             <h2 className="text-3xl font-bold mb-2">Reporte de Costo Laboral</h2>
             <p className="text-slate-400">Legislación Boliviana 2025</p>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-slate-400 mb-1">Costo Laboral Mensual Total</p>
+          <div className="text-right bg-white/10 backdrop-blur-sm p-4 rounded-2xl border border-white/10">
+            <p className="text-sm text-slate-300 mb-1">Costo Laboral Mensual Total</p>
             <p className="text-4xl font-bold text-emerald-400">{formatCurrency(totals.costoLaboralMensual)}</p>
           </div>
         </div>
@@ -150,7 +133,7 @@ const Results = ({ results, onBack, onNewCalculation }) => {
 
       {/* TABS DE NAVEGACIÓN */}
       <div className="flex justify-center">
-        <div className="bg-white p-1 rounded-xl shadow-sm border border-slate-200 inline-flex">
+        <div className="bg-slate-100/50 p-1.5 rounded-xl border border-slate-200 inline-flex">
           {[
             { id: 'resumen', label: 'Dashboard Ejecutivo', icon: PieChart },
             { id: 'detalle', label: 'Planilla Detallada', icon: FileSpreadsheet },
@@ -158,10 +141,10 @@ const Results = ({ results, onBack, onNewCalculation }) => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
+              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
                 activeTab === tab.id
-                  ? 'bg-slate-800 text-white shadow-md'
-                  : 'text-slate-600 hover:bg-slate-50'
+                  ? 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
               }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -178,26 +161,26 @@ const Results = ({ results, onBack, onNewCalculation }) => {
           {/* Tarjetas KPI */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard 
-              title="Total Ganado (Masa Salarial)" 
+              title="Total Ganado" 
               value={formatCurrency(totals.totalGanado)} 
               icon={DollarSign} 
               color="blue" 
             />
             <KpiCard 
-              title="Cargas Patronales (16.71% + Solidario)" 
+              title="Cargas Patronales" 
               value={formatCurrency(totals.aportesPatronales)} 
               subValue={`${formatPercent((totals.aportesPatronales / totals.totalGanado) * 100)} del TG`}
               icon={Building2} 
               color="purple" 
             />
             <KpiCard 
-              title="Provisiones Sociales (Aguinaldo/Indem)" 
+              title="Provisiones Sociales" 
               value={formatCurrency(totals.provisiones)} 
               icon={Award} 
               color="amber" 
             />
             <KpiCard 
-              title="Costo Promedio por Empleado" 
+              title="Costo Promedio" 
               value={formatCurrency(totals.costoLaboralMensual / employeeCount)} 
               subValue={`${employeeCount} Empleados`}
               icon={Users} 
@@ -211,17 +194,17 @@ const Results = ({ results, onBack, onNewCalculation }) => {
             {/* Distribución por Área */}
             <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
               <SectionHeader icon={PieChart} title="Distribución de Costo por Área" color="blue" />
-              <div className="space-y-4">
+              <div className="space-y-5">
                 {byArea.map((area, index) => (
                   <div key={index} className="relative">
-                    <div className="flex justify-between text-sm mb-1 z-10 relative">
+                    <div className="flex justify-between text-sm mb-2 z-10 relative">
                       <span className="font-medium text-slate-700">{area.area}</span>
                       <span className="font-bold text-slate-900">{formatCurrency(area.costoMensual)} ({area.porcentaje}%)</span>
                     </div>
                     <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
                       <div 
-                        className="h-full rounded-full bg-blue-500" 
-                        style={{ width: `${area.porcentaje}%`, opacity: 0.8 }}
+                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" 
+                        style={{ width: `${area.porcentaje}%`, opacity: 0.9 }}
                       ></div>
                     </div>
                   </div>
@@ -229,35 +212,35 @@ const Results = ({ results, onBack, onNewCalculation }) => {
               </div>
             </div>
 
-            {/* Estructura del Costo (Waterfall simplificado) */}
+            {/* Estructura del Costo */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
               <SectionHeader icon={BarChart3} title="Estructura del Costo" color="purple" />
               <div className="space-y-6 mt-8">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <span className="text-sm text-slate-600">Sueldo Neto + Aportes Lab.</span>
+                    <span className="text-sm text-slate-600">Sueldo + Aportes</span>
                   </div>
                   <span className="font-bold text-slate-800">{formatPercent((totals.totalGanado / totals.costoLaboralMensual) * 100)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                    <span className="text-sm text-slate-600">Aportes Patronales</span>
+                    <span className="text-sm text-slate-600">Patronales</span>
                   </div>
                   <span className="font-bold text-slate-800">{formatPercent((totals.aportesPatronales / totals.costoLaboralMensual) * 100)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                    <span className="text-sm text-slate-600">Provisiones (Pasivos)</span>
+                    <span className="text-sm text-slate-600">Provisiones</span>
                   </div>
                   <span className="font-bold text-slate-800">{formatPercent((totals.provisiones / totals.costoLaboralMensual) * 100)}</span>
                 </div>
                 
                 <div className="pt-6 border-t border-slate-100 mt-4">
-                  <p className="text-xs text-slate-400 text-center">
-                    Por cada Bs 100 pagados al empleado, la empresa gasta Bs {roundTwo((totals.costoLaboralMensual / totals.totalGanado) * 100)}.
+                  <p className="text-xs text-slate-400 text-center leading-relaxed">
+                    Por cada <strong>Bs 100</strong> pagados al empleado, la empresa invierte <strong>Bs {roundTwo((totals.costoLaboralMensual / totals.totalGanado) * 100)}</strong> en total.
                   </p>
                 </div>
               </div>
@@ -269,21 +252,21 @@ const Results = ({ results, onBack, onNewCalculation }) => {
       {/* VISTA: DETALLE DE EMPLEADOS */}
       {activeTab === 'detalle' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          {/* Barra de herramientas de tabla */}
-          <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50">
+          {/* Barra de herramientas */}
+          <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50/50">
             <div className="relative w-full md:w-96">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input 
                 type="text"
                 placeholder="Buscar por nombre, cargo o área..."
-                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             <div className="flex gap-2">
-              <button className="p-2 text-slate-600 hover:bg-white hover:shadow-sm rounded-lg transition-all" title="Descargar Excel">
-                <FileSpreadsheet className="w-5 h-5" />
+              <button className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all shadow-sm">
+                Descargar Excel
               </button>
             </div>
           </div>
@@ -314,7 +297,7 @@ const Results = ({ results, onBack, onNewCalculation }) => {
                   <th className="px-6 py-4 text-right cursor-pointer hover:bg-slate-100" onClick={() => handleSort('provisiones.total')}>
                     <div className="flex items-center justify-end gap-1">Provisiones <SortIcon column="provisiones.total" /></div>
                   </th>
-                  <th className="px-6 py-4 text-right cursor-pointer hover:bg-slate-100 bg-blue-50/50" onClick={() => handleSort('costoLaboralMensual')}>
+                  <th className="px-6 py-4 text-right cursor-pointer hover:bg-slate-100 bg-blue-50/30" onClick={() => handleSort('costoLaboralMensual')}>
                     <div className="flex items-center justify-end gap-1 text-blue-700">Costo Mensual <SortIcon column="costoLaboralMensual" /></div>
                   </th>
                 </tr>
@@ -351,13 +334,13 @@ const Results = ({ results, onBack, onNewCalculation }) => {
       <div className="flex justify-center gap-4 pt-4">
         <button
           onClick={onBack}
-          className="px-6 py-3 border border-slate-300 text-slate-600 rounded-xl hover:bg-white hover:shadow-sm transition-all font-medium"
+          className="px-6 py-3.5 border border-slate-300 text-slate-600 rounded-xl hover:bg-white hover:shadow-sm transition-all font-medium"
         >
           Atrás (Configuración)
         </button>
         <button
           onClick={onNewCalculation}
-          className="px-8 py-3 bg-slate-800 text-white rounded-xl hover:bg-slate-900 shadow-lg hover:shadow-xl transition-all font-medium flex items-center gap-2"
+          className="flex items-center gap-2 px-8 py-3.5 bg-slate-800 text-white rounded-xl hover:bg-slate-900 shadow-lg hover:shadow-xl transition-all font-medium"
         >
           <RefreshCw className="w-4 h-4" />
           Iniciar Nuevo Cálculo

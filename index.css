@@ -1,80 +1,526 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   SISTEMA DE DISEÑO - CALCULADORA COSTO LABORAL BOLIVIA 2025
+   Desarrollado por: JELB - Jefe Nacional Corporativo de Talento Humano
+   ============================================================================ */
+
+/* === PALETA DE COLORES CORPORATIVA === */
+:root {
+  /* Colores Principales */
+  --color-primary: #1e40af;      /* Blue-800 */
+  --color-primary-light: #3b82f6; /* Blue-500 */
+  --color-primary-dark: #1e3a8a;  /* Blue-900 */
+  
+  /* Colores Secundarios */
+  --color-secondary: #8b5cf6;     /* Purple-500 */
+  --color-accent: #10b981;        /* Emerald-500 */
+  --color-warning: #f59e0b;       /* Amber-500 */
+  --color-danger: #ef4444;        /* Red-500 */
+  
+  /* Neutros Mejorados */
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f8fafc;  /* Slate-50 */
+  --color-bg-tertiary: #f1f5f9;   /* Slate-100 */
+  
+  /* Textos */
+  --color-text-primary: #0f172a;   /* Slate-900 */
+  --color-text-secondary: #475569; /* Slate-600 */
+  --color-text-tertiary: #94a3b8;  /* Slate-400 */
+  
+  /* Bordes */
+  --color-border-light: #e2e8f0;   /* Slate-200 */
+  --color-border-medium: #cbd5e1;  /* Slate-300 */
+  
+  /* Sombras */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  
+  /* Border Radius */
+  --radius-sm: 0.5rem;    /* 8px */
+  --radius-md: 0.75rem;   /* 12px */
+  --radius-lg: 1rem;      /* 16px */
+  --radius-xl: 1.5rem;    /* 24px */
+  --radius-2xl: 2rem;     /* 32px */
+  
+  /* Spacing */
+  --spacing-xs: 0.5rem;   /* 8px */
+  --spacing-sm: 1rem;     /* 16px */
+  --spacing-md: 1.5rem;   /* 24px */
+  --spacing-lg: 2rem;     /* 32px */
+  --spacing-xl: 3rem;     /* 48px */
+}
+
 /* === GLOBAL STYLES === */
 body {
-  font-family: 'Inter', sans-serif;
-  /* Fondo moderno con degradado sutil para dar profundidad */
-  background: radial-gradient(circle at 50% 0%, #f1f5f9 0%, #e2e8f0 100%);
-  color: #0f172a; /* Slate-900: Más contraste que antes */
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: radial-gradient(circle at 50% 0%, #f8fafc 0%, #f1f5f9 100%);
+  color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
 }
 
 /* === SCROLLBAR MODERNO === */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 10px;
+  transition: background 0.2s;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
 
+/* === ANIMACIONES Y TRANSICIONES === */
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-enter {
+  animation: slideInUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.hover-lift {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-xl);
+}
+
+.btn-press:active {
+  transform: scale(0.98);
+}
+
 /* === CLASES DE UTILIDAD PREMIUM === */
 
-/* Efecto Cristal (Glassmorphism) */
 .glass {
-  @apply bg-white/70 backdrop-blur-lg border border-white/50 shadow-sm;
+  @apply bg-white/80 backdrop-blur-2xl border border-white/50 shadow-sm;
 }
 
 .glass-card {
-  @apply bg-white/80 backdrop-blur-md border border-white/60 shadow-xl rounded-3xl;
+  @apply bg-white/90 backdrop-blur-xl border border-white/60 shadow-xl rounded-3xl;
 }
 
-/* Botón Principal Mejorado */
+/* === SISTEMA DE BOTONES PREMIUM === */
+
 .btn-primary {
-  @apply flex items-center justify-center gap-2 px-8 py-3.5 
-         bg-gradient-to-r from-slate-800 to-slate-900 
-         text-white font-semibold rounded-2xl 
-         shadow-lg shadow-slate-900/20 
-         hover:shadow-xl hover:shadow-slate-900/30 hover:-translate-y-0.5 
-         active:scale-95 transition-all duration-300;
+  @apply relative flex items-center justify-center gap-2 px-8 py-3.5 
+         bg-gradient-to-r from-blue-600 to-indigo-600 
+         text-white font-semibold rounded-xl 
+         shadow-lg shadow-blue-500/25
+         overflow-hidden
+         transition-all duration-300
+         hover:shadow-xl hover:shadow-blue-500/40 hover:-translate-y-0.5
+         active:scale-[0.98]
+         disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:transform-none;
 }
 
-/* Botón Secundario */
+.btn-primary::before {
+  content: '';
+  @apply absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-500 
+         opacity-0 transition-opacity duration-300;
+}
+
+.btn-primary:hover::before {
+  @apply opacity-100;
+}
+
+.btn-primary > * {
+  @apply relative z-10;
+}
+
 .btn-secondary {
-  @apply flex items-center justify-center gap-2 px-6 py-3.5
-         bg-white text-slate-700 font-medium rounded-2xl
-         border border-slate-200 shadow-sm
-         hover:bg-slate-50 hover:border-slate-300
+  @apply flex items-center justify-center gap-2 px-6 py-3
+         bg-white text-slate-700 font-medium rounded-xl
+         border-2 border-slate-200 shadow-sm
+         transition-all duration-300
+         hover:bg-slate-50 hover:border-slate-300 hover:shadow-md
+         active:scale-[0.98];
+}
+
+.btn-danger {
+  @apply flex items-center justify-center gap-2 px-6 py-3
+         bg-gradient-to-r from-red-500 to-rose-600
+         text-white font-semibold rounded-xl
+         shadow-lg shadow-red-500/25
+         transition-all duration-300
+         hover:shadow-xl hover:shadow-red-500/40 hover:-translate-y-0.5
+         active:scale-[0.98];
+}
+
+.btn-success {
+  @apply flex items-center justify-center gap-2 px-6 py-3
+         bg-gradient-to-r from-emerald-500 to-teal-600
+         text-white font-semibold rounded-xl
+         shadow-lg shadow-emerald-500/25
+         transition-all duration-300
+         hover:shadow-xl hover:shadow-emerald-500/40 hover:-translate-y-0.5
+         active:scale-[0.98];
+}
+
+.btn-ghost {
+  @apply flex items-center justify-center gap-2 px-6 py-3
+         text-slate-600 font-medium rounded-xl
+         transition-all duration-200
+         hover:bg-slate-100 hover:text-slate-800
+         active:scale-[0.98];
+}
+
+.btn-icon {
+  @apply w-10 h-10 flex items-center justify-center
+         rounded-xl text-slate-600 
+         transition-all duration-200
+         hover:bg-slate-100 hover:text-slate-800
+         active:scale-95;
+}
+
+/* === SISTEMA DE INPUTS === */
+
+.input-field {
+  @apply w-full px-4 py-3.5 rounded-xl 
+         bg-white border-2 border-slate-200 
+         text-slate-800 placeholder-slate-400
+         text-sm font-medium
+         transition-all duration-200
+         focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none
+         hover:border-slate-300
+         disabled:bg-slate-50 disabled:cursor-not-allowed;
+}
+
+.input-field-error {
+  @apply input-field border-red-300 focus:border-red-500 focus:ring-red-500/10;
+}
+
+.select-field {
+  @apply input-field appearance-none bg-no-repeat cursor-pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-position: right 0.5rem center;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}
+
+.textarea-field {
+  @apply input-field resize-none min-h-[120px];
+}
+
+.form-label {
+  @apply block text-sm font-semibold text-slate-700 mb-2;
+}
+
+.form-helper {
+  @apply text-xs text-slate-500 mt-1.5;
+}
+
+.form-error {
+  @apply text-xs text-red-600 mt-1.5 flex items-center gap-1;
+}
+
+/* === SISTEMA DE CARDS === */
+
+.card {
+  @apply bg-white rounded-2xl border border-slate-200 
+         shadow-sm transition-all duration-300
+         hover:shadow-md hover:-translate-y-0.5;
+}
+
+.card-flat {
+  @apply bg-white rounded-2xl border border-slate-200;
+}
+
+.card-elevated {
+  @apply bg-white rounded-2xl shadow-lg 
+         transition-all duration-300
+         hover:shadow-xl hover:-translate-y-1;
+}
+
+.glass-card {
+  @apply bg-white/90 backdrop-blur-xl 
+         border border-white/60 
+         rounded-3xl shadow-xl
+         transition-all duration-300;
+}
+
+.card-gradient {
+  @apply bg-gradient-to-br from-white to-slate-50 
+         rounded-2xl border border-slate-200 
+         shadow-sm transition-all duration-300
+         hover:shadow-md;
+}
+
+.info-card {
+  @apply card p-6;
+}
+
+.stat-card {
+  @apply card p-6 relative overflow-hidden;
+}
+
+.stat-card::before {
+  content: '';
+  @apply absolute -right-8 -top-8 w-32 h-32 
+         rounded-full opacity-5
+         bg-gradient-to-br from-blue-500 to-indigo-600;
+}
+
+/* === BADGES Y TAGS === */
+
+.badge {
+  @apply inline-flex items-center gap-1.5 px-3 py-1 
+         text-xs font-semibold rounded-full
          transition-all duration-200;
 }
 
-/* Inputs más limpios */
-.input-field {
-  @apply w-full px-5 py-3.5 rounded-xl 
-         bg-white border border-slate-200 
-         text-slate-700 placeholder-slate-400
-         focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 
-         outline-none transition-all duration-200 shadow-sm;
+.badge-primary {
+  @apply badge bg-blue-100 text-blue-700 
+         hover:bg-blue-200;
 }
 
-/* Animación de entrada suave */
-.animate-enter {
-  animation: enter 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.badge-success {
+  @apply badge bg-emerald-100 text-emerald-700 
+         hover:bg-emerald-200;
 }
 
-@keyframes enter {
-  0% { opacity: 0; transform: translateY(10px) scale(0.98); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
+.badge-warning {
+  @apply badge bg-amber-100 text-amber-700 
+         hover:bg-amber-200;
+}
+
+.badge-danger {
+  @apply badge bg-red-100 text-red-700 
+         hover:bg-red-200;
+}
+
+.badge-neutral {
+  @apply badge bg-slate-100 text-slate-700 
+         hover:bg-slate-200;
+}
+
+.tag-dot {
+  @apply inline-flex items-center gap-2 px-3 py-1.5 
+         bg-slate-100 text-slate-700 text-xs font-medium 
+         rounded-full;
+}
+
+.tag-dot::before {
+  content: '';
+  @apply w-2 h-2 rounded-full bg-current;
+}
+
+/* === ESTADOS DE CARGA === */
+
+.skeleton {
+  @apply bg-slate-200 rounded animate-pulse;
+}
+
+.skeleton-text {
+  @apply skeleton h-4 w-full;
+}
+
+.skeleton-title {
+  @apply skeleton h-6 w-3/4;
+}
+
+.skeleton-avatar {
+  @apply skeleton w-12 h-12 rounded-full;
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    #f1f5f9 0%,
+    #e2e8f0 50%,
+    #f1f5f9 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.spinner {
+  @apply inline-block w-6 h-6 border-3 border-slate-200 
+         border-t-blue-600 rounded-full animate-spin;
+}
+
+.spinner-lg {
+  @apply w-10 h-10 border-4;
+}
+
+.loading-overlay {
+  @apply absolute inset-0 bg-white/80 backdrop-blur-sm 
+         flex items-center justify-center
+         transition-opacity duration-300;
+}
+
+/* === ALERTAS === */
+
+.alert {
+  @apply flex items-start gap-3 p-4 rounded-xl 
+         border-l-4 font-medium text-sm;
+}
+
+.alert-info {
+  @apply alert bg-blue-50 border-blue-500 text-blue-900;
+}
+
+.alert-success {
+  @apply alert bg-emerald-50 border-emerald-500 text-emerald-900;
+}
+
+.alert-warning {
+  @apply alert bg-amber-50 border-amber-500 text-amber-900;
+}
+
+.alert-danger {
+  @apply alert bg-red-50 border-red-500 text-red-900;
+}
+
+.toast {
+  @apply flex items-center gap-3 p-4 rounded-xl 
+         bg-slate-900 text-white shadow-xl
+         animate-slide-in-right;
+}
+
+/* === RESPONSIVE UTILITIES === */
+
+.container-custom {
+  @apply w-full mx-auto px-4;
+  max-width: 1400px;
+}
+
+@media (min-width: 640px) {
+  .container-custom {
+    @apply px-6;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container-custom {
+    @apply px-8;
+  }
+}
+
+.hide-mobile {
+  @apply hidden md:block;
+}
+
+.hide-desktop {
+  @apply block md:hidden;
+}
+
+.stack-mobile {
+  @apply flex flex-col gap-4;
+}
+
+@media (min-width: 768px) {
+  .stack-mobile {
+    @apply flex-row;
+  }
+}
+
+/* === UTILIDADES ADICIONALES === */
+
+.text-gradient {
+  @apply text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600;
+}
+
+.border-gradient {
+  border-image: linear-gradient(135deg, #3b82f6, #6366f1) 1;
+}
+
+/* Smooth focus ring para accesibilidad */
+*:focus-visible {
+  @apply outline-none ring-4 ring-blue-500/20 ring-offset-2;
+}
+
+/* Mejora de selección de texto */
+::selection {
+  @apply bg-blue-200 text-blue-900;
+}
+
+::-moz-selection {
+  @apply bg-blue-200 text-blue-900;
 }

@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import {
-  Calculator, TrendingUp, GitCompare, Check,
-  ChevronLeft, Award
+  Calculator, TrendingUp, GitCompare, ChevronLeft, Award
 } from 'lucide-react';
 import {
-  parseExcel, autoDetectColumns, validateData, 
-  calculateAll, analyzePeriods, analyzePrecierre,
+  parseExcel, autoDetectColumns, calculateAll, analyzePeriods, analyzePrecierre,
   parseAbsenceFile, MONTHS
 } from './utils.js';
 
@@ -19,7 +17,7 @@ import PredictiveAnalysis from './PredictiveAnalysis.jsx';
 import PrecierreAnalysis from './PrecierreAnalysis.jsx';
 
 // ============================================================================
-// COMPONENTE: SELECTOR DE MODO (MEJORADO VISUALMENTE)
+// COMPONENTE: SELECTOR DE MODO (MEJORADO v3.0)
 // ============================================================================
 
 const ModeSelector = ({ onSelectMode }) => {
@@ -199,7 +197,7 @@ const App = () => {
 
   // --- CALCULO ---
 
-  const handleValidate = () => handleNextStep(); // Simplificado para demo visual
+  const handleValidate = () => handleNextStep(); 
 
   const handleCalculate = () => {
     setIsLoading(true);
@@ -250,6 +248,10 @@ const App = () => {
     handleNextStep();
   };
 
+  // Exportaciones Dummy
+  const handleExportExcel = () => alert("Exportando a Excel...");
+  const handleExportPDF = () => alert("Generando PDF...");
+
   // --- RENDERIZADO ---
 
   return (
@@ -298,7 +300,7 @@ const App = () => {
         ) : (
           <div className="max-w-7xl mx-auto px-6 mt-10 animate-enter">
             
-            {/* WRAPPER BLANCO ELEGANTE PARA STEPS */}
+            {/* WRAPPER BLANCO ELEGANTE PARA STEPS (Lo que pedía la Guía) */}
             <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/60 border border-slate-100 p-8 md:p-12 min-h-[600px]">
               
               {currentStep === 1 && (
@@ -344,7 +346,7 @@ const App = () => {
                  )
               )}
 
-              {/* RESULTADOS OCUPAN TODO EL ANCHO (Fuera del wrapper si se desea, pero aquí dentro se ve limpio) */}
+              {/* RESULTADOS (Integrados en el wrapper) */}
               {mode === 'single' && currentStep === 4 && results && (
                 <Results 
                   results={results} 
@@ -367,6 +369,8 @@ const App = () => {
                 <PredictiveAnalysis 
                   analysis={analysis} 
                   onNewAnalysis={handleBackToModes}
+                  onExportExcel={handleExportExcel}
+                  onExportPDF={handleExportPDF}
                 />
               )}
 
@@ -375,6 +379,8 @@ const App = () => {
                   analysis={precierreAnalysis}
                   periodsData={multiFilesData}
                   onNewAnalysis={handleBackToModes}
+                  onExportExcel={handleExportExcel}
+                  onExportPDF={handleExportPDF}
                 />
               )}
             </div>
