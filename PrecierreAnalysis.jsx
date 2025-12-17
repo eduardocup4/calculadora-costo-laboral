@@ -68,54 +68,93 @@ const PrecierreAnalysis = ({ analysis, periodsData, onNewAnalysis }) => {
         </div>
 
         {/* Tabla de Variaciones por Persona */}
-        <div className="lg:col-span-2">
-            <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-500" />
-                Detalle de Variaciones (> 0 Bs)
-            </h3>
-            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-                <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-slate-500">
-                        <tr>
-                            <th className="px-4 py-3 text-left">Empleado</th>
-                            <th className="px-4 py-3 text-right">Diferencia</th>
-                            <th className="px-4 py-3 text-right">% Var</th>
-                            <th className="px-4 py-3 text-left">Motivo Probable</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {variations.filter(v => Math.abs(v.diff) > 0).slice(0, 10).map((v, i) => (
-                            <tr key={i}>
-                                <td className="px-4 py-3 font-medium text-slate-700">{v.nombre}</td>
-                                <td className={`px-4 py-3 text-right font-bold ${v.diff > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                                    {v.diff > 0 ? '+' : ''}{formatCurrency(v.diff)}
-                                </td>
-                                <td className="px-4 py-3 text-right text-slate-500">{formatPercent(v.pct)}</td>
-                                <td className="px-4 py-3 text-slate-500 italic">
-                                    {v.diff > 0 ? 'Incremento / Bono' : 'Descuento / Baja'}
-                                </td>
-                            </tr>
-                        ))}
-                        {variations.length === 0 && (
-                            <tr>
-                                <td colSpan="4" className="p-8 text-center text-slate-400">
-                                    No hay variaciones individuales registradas.
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+import React from 'react';
+import { UserPlus, UserMinus, AlertTriangle, Download, ArrowRight } from 'lucide-react';
+import { formatCurrency, formatPercent, exportReportPDF } from './utils';
+
+const PrecierreAnalysis = ({ analysis, periodsData, onNewAnalysis }) => {
+  const { generalDiff, alerts, variations, altas, bajas } = analysis;
+  const currentPeriod = periodsData[periodsData.length - 1];
+  const prevPeriod = periodsData[periodsData.length - 2];
+
+  const handleDownload = () => {
+      const headers = ['Nombre', 'Concepto', 'Anterior', 'Actual', 'Diferencia'];
+      const rows = variations.map(v => [v.nombre, v.concepto, formatCurrency(v.anterior), formatCurrency(v.actual), formatCurrency(v.diff)]);
+      exportReportPDF(`Auditoria_Precierre_${currentPeriod.name}`, headers, rows);
+  };
+
+  return (
+    <div className="animate-fade-in space-y-8">
+        <div className="flex justify-between items-center">
+            <div>
+                <h2 className="text-3xl font-bold text-slate-800">Auditoría: {prevPeriod.name} vs {currentPeriod.name}</h2>
+                <p className="text-slate-500">Variación Neta: <span className={generalDiff.absolute > 0 ? "text-red-500 font-bold" : "text-emerald-500"}>{formatPercent(generalDiff.percentage)}</span></p>
             </div>
-            <div className="mt-6 flex justify-end gap-3">
-                <button onClick={onNewAnalysis} className="text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-lg transition-colors">
-                    Volver
-                </button>
-                <button className="bg-slate-800 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-900 shadow-lg">
-                    <Download className="w-4 h-4" /> Descargar Reporte Completo
-                </button>
+            <button onClick={handleDownload} className="btn-primary">
+                <Download className="w-4 h-4" /> Reporte Auditoría (PDF)
+            </button>
+        </div>
+
+        {/* ALTAS Y BAJAS */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100">
+                <h3 className="font-bold text-emerald-800 flex items-center gap-2 mb-4">
+                    <UserPlus className="w-5 h-5" /> Nuevos Ingresos (Altas)
+                </h3>
+                <ul className="space-y-2 max-h-60 overflow-y-auto">
+                    {altas.map((p, i) => (
+                        <li key={i} className="text-sm text-emerald-700 border-b border-emerald-100 pb-1 flex justify-between">
+                            <span>{p.nombre}</span> <span className="font-bold">{formatCurrency(p.totalGanado)}</span>
+                        </li>
+                    ))}
+                    {altas.length === 0 && <p className="text-xs opacity-50">No hubo ingresos.</p>}
+                </ul>
+            </div>
+            <div className="bg-red-50 p-6 rounded-2xl border border-red-100">
+                <h3 className="font-bold text-red-800 flex items-center gap-2 mb-4">
+                    <UserMinus className="w-5 h-5" /> Bajas Detectadas
+                </h3>
+                <ul className="space-y-2 max-h-60 overflow-y-auto">
+                    {bajas.map((p, i) => (
+                        <li key={i} className="text-sm text-red-700 border-b border-red-100 pb-1 flex justify-between">
+                            <span>{p.nombre}</span> <span className="font-bold">{formatCurrency(p.totalGanado)}</span>
+                        </li>
+                    ))}
+                    {bajas.length === 0 && <p className="text-xs opacity-50">No hubo bajas.</p>}
+                </ul>
             </div>
         </div>
-      </div>
+
+        {/* VARIACIONES */}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100">
+                <h3 className="font-bold text-slate-800">Variaciones Salariales Específicas</h3>
+            </div>
+            <table className="w-full text-sm text-left">
+                <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                        <th className="px-6 py-4">Empleado</th>
+                        <th className="px-6 py-4">Concepto</th>
+                        <th className="px-6 py-4 text-right">Anterior</th>
+                        <th className="px-6 py-4 text-right">Actual</th>
+                        <th className="px-6 py-4 text-right">Dif</th>
+                    </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                    {variations.map((v, i) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                            <td className="px-6 py-4 font-medium">{v.nombre}</td>
+                            <td className="px-6 py-4 text-slate-500">{v.concepto}</td>
+                            <td className="px-6 py-4 text-right text-slate-400">{formatCurrency(v.anterior)}</td>
+                            <td className="px-6 py-4 text-right font-medium">{formatCurrency(v.actual)}</td>
+                            <td className={`px-6 py-4 text-right font-bold ${v.diff > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
+                                {formatCurrency(v.diff)}
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
     </div>
   );
 };
