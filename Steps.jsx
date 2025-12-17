@@ -8,7 +8,7 @@ import {
 import { 
   extractUniqueValues, formatPercent, CONSTANTS, formatCurrency,
   parseVariantsFile, getColumnsAfterLiquidoPagable, validateVariablesSum, 
-  parseNumber
+  parseNumber, normalizeText
 } from './utils';
 
 // ============================================================================
@@ -255,36 +255,28 @@ export const VariableDictionary = ({ headers, data, mappedColumns, mapping, extr
     };
     
     const getDisplayName = (col) => renamedHeaders[col] || col;
-    
-    const getVariantType = (col) => {
+const getVariantType = (col) => {
         const variant = variants.find(v => 
             col.includes(v.codigo) || normalizeText(col).includes(normalizeText(v.codigo))
         );
         return variant ? variant.tipo : 'otro';
     };
     
-const isIncremento = (col) => {
-    if (parsedVariants.length === 0) return true;
-    
-    const variant = parsedVariants.find(v => 
-        col.includes(v.codigo) || normalizeText(col).includes(normalizeText(v.codigo))
-    );
-    
-    if (!variant) return false;
-    
-    const tipo = normalizeText(variant.tipo);
-    return tipo === 'incremento' || tipo.includes('increment');
-};    
-    const variant = variants.find(v => 
-        col.includes(v.codigo) || normalizeText(col).includes(normalizeText(v.codigo))
-    );
-    
-    if (!variant) return false; // No encontrado en diccionario
-    
-    const tipo = normalizeText(variant.tipo);
-    return tipo === 'incremento' || tipo.includes('increment');
-};
-    
+    // ESTA ES LA VERSIÓN CORRECTA Y LIMPIA
+    const isIncremento = (col) => {
+        // Validación de seguridad: si no hay variantes cargadas, asumimos true para no bloquear
+        if (variants.length === 0) return true;
+        
+        const variant = variants.find(v => 
+            col.includes(v.codigo) || normalizeText(col).includes(normalizeText(v.codigo))
+        );
+        
+        // Si la columna no está en el diccionario de variantes, NO es incremento
+        if (!variant) return false;
+        
+        const tipo = normalizeText(variant.tipo);
+        return tipo === 'incremento' || tipo.includes('increment');
+    };
     const toggle = (col) => {
         if(!isIncremento(col) && variants.length > 0) {
             alert('Solo se pueden seleccionar variantes tipo INCREMENTO');
