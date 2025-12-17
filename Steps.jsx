@@ -264,20 +264,17 @@ export const VariableDictionary = ({ headers, data, mappedColumns, mapping, extr
     };
     
 const isIncremento = (col) => {
-    if (variants.length === 0) return true; // Sin diccionario, mostrar todas
+    if (parsedVariants.length === 0) return true;
     
-    const variant = variants.find(v => 
+    const variant = parsedVariants.find(v => 
         col.includes(v.codigo) || normalizeText(col).includes(normalizeText(v.codigo))
     );
     
-    if (!variant) return false; // No encontrado en diccionario
+    if (!variant) return false;
     
     const tipo = normalizeText(variant.tipo);
     return tipo === 'incremento' || tipo.includes('increment');
-};
-const isIncremento = (col) => {
-    if (variants.length === 0) return true; // Sin diccionario, mostrar todas
-    
+};    
     const variant = variants.find(v => 
         col.includes(v.codigo) || normalizeText(col).includes(normalizeText(v.codigo))
     );
