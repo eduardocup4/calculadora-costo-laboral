@@ -1,350 +1,131 @@
-import React, { useState, useMemo } from 'react';
-import {
-  Users, DollarSign, TrendingUp, Building2, Award, RefreshCw,
-  FileSpreadsheet, PieChart, BarChart3, Calculator, ArrowUpDown, ArrowUp, ArrowDown,
-  Search
+import React, { useMemo } from 'react';
+import { 
+  ArrowLeft, Download, Users, DollarSign, 
+  PieChart, Building2, Wallet, RefreshCw 
 } from 'lucide-react';
-import { formatCurrency, formatPercent, roundTwo } from './utils.js';
-
-// ============================================================================
-// COMPONENTE: HEADER DE SECCIÓN
-// ============================================================================
-const SectionHeader = ({ icon: Icon, title, subtitle, color = 'blue' }) => {
-  const colorClasses = {
-    blue: 'from-blue-500 to-indigo-600',
-    emerald: 'from-emerald-500 to-teal-600',
-    amber: 'from-amber-500 to-orange-600',
-    purple: 'from-purple-500 to-violet-600',
-  };
-
-  return (
-    <div className="flex items-center gap-4 mb-6">
-      <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${colorClasses[color]} flex items-center justify-center shadow-lg shadow-${color}-500/20`}>
-        <Icon className="w-6 h-6 text-white" />
-      </div>
-      <div>
-        <h3 className="text-lg font-bold text-slate-800">{title}</h3>
-        {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
-      </div>
-    </div>
-  );
-};
-
-// ============================================================================
-// COMPONENTE: KPI CARD
-// ============================================================================
-const KpiCard = ({ title, value, subValue, icon: Icon, color }) => {
-  const styles = {
-    blue: { bg: 'bg-blue-50', text: 'text-blue-700', icon: 'text-blue-600' },
-    green: { bg: 'bg-emerald-50', text: 'text-emerald-700', icon: 'text-emerald-600' },
-    amber: { bg: 'bg-amber-50', text: 'text-amber-700', icon: 'text-amber-600' },
-    purple: { bg: 'bg-purple-50', text: 'text-purple-700', icon: 'text-purple-600' },
-  };
-
-  const style = styles[color] || styles.blue;
-
-  return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300">
-      <div className="flex justify-between items-start mb-4">
-        <div className={`p-3 rounded-xl ${style.bg}`}>
-          <Icon className={`w-6 h-6 ${style.icon}`} />
-        </div>
-        {subValue && (
-          <span className="text-xs font-medium text-slate-500 bg-slate-50 px-3 py-1 rounded-full border border-slate-100">
-            {subValue}
-          </span>
-        )}
-      </div>
-      <p className="text-sm text-slate-500 font-medium mb-1">{title}</p>
-      <h4 className={`text-3xl font-bold ${style.text}`}>{value}</h4>
-    </div>
-  );
-};
-
-// ============================================================================
-// COMPONENTE PRINCIPAL: RESULTADOS
-// ============================================================================
+import { formatCurrency, formatPercent } from './utils';
 
 const Results = ({ results, onBack, onNewCalculation }) => {
-  const [activeTab, setActiveTab] = useState('resumen');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortConfig, setSortConfig] = useState({ key: 'costoLaboralMensual', direction: 'desc' });
+  const { summary, details } = results;
 
-  const { 
-    totals = {}, 
-    employees = [], 
-    byArea = [], 
-    employeeCount = 0 
-  } = results || {};
+  // Datos para gráficos simples (CSS width)
+  const maxCosto = Math.max(...details.map(d => d.costoTotalMensual));
 
-  const filteredEmployees = useMemo(() => {
-    let data = [...employees];
-    if (searchTerm) {
-      data = data.filter(e => 
-        e.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.cargo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.area.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    if (sortConfig.key) {
-      data.sort((a, b) => {
-        const getValue = (obj, path) => path.split('.').reduce((o, i) => o[i], obj);
-        const aVal = getValue(a, sortConfig.key);
-        const bVal = getValue(b, sortConfig.key);
-        if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return data;
-  }, [employees, searchTerm, sortConfig]);
+  return (
+    <div className="animate-fade-in">
+      {/* Header Resultados */}
+      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-slate-800">Reporte de Costo Laboral</h2>
+          <p className="text-slate-500">Cálculo basado en normativa boliviana vigencia 2025</p>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={onNewCalculation} className="flex items-center gap-2 px-4 py-2 text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">
+            <RefreshCw className="w-4 h-4" /> Nuevo Cálculo
+          </button>
+          <button className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-500/30">
+            <Download className="w-4 h-4" /> Exportar PDF
+          </button>
+        </div>
+      </div>
 
-  const handleSort = (key) => {
-    setSortConfig(prev => ({
-      key,
-      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
-    }));
-  };
+      {/* KPIs Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <KPICard 
+          title="Costo Total Empresa" 
+          value={formatCurrency(summary.totalCostoLaboral)} 
+          icon={DollarSign} 
+          color="blue" 
+        />
+        <KPICard 
+          title="Total Líquido Pagable" 
+          value={formatCurrency(summary.totalLiquido)} 
+          icon={Wallet} 
+          color="emerald" 
+        />
+        <KPICard 
+          title="Cargas Patronales" 
+          value={formatCurrency(summary.totalPatronal)} 
+          icon={Building2} 
+          color="indigo" 
+        />
+        <KPICard 
+          title="Provisiones Sociales" 
+          value={formatCurrency(summary.totalProvisiones)} 
+          icon={PieChart} 
+          color="amber" 
+        />
+      </div>
 
-  const SortIcon = ({ column }) => {
-    if (sortConfig.key !== column) return <ArrowUpDown className="w-4 h-4 text-slate-300" />;
-    return sortConfig.direction === 'asc' 
-      ? <ArrowUp className="w-4 h-4 text-blue-600" /> 
-      : <ArrowDown className="w-4 h-4 text-blue-600" />;
+      {/* Tabla Detallada */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <Users className="w-5 h-5 text-slate-500" />
+            Nómina Detallada ({details.length} Empleados)
+          </h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-slate-50 text-slate-500 font-medium">
+              <tr>
+                <th className="px-6 py-4">Empleado</th>
+                <th className="px-6 py-4">Cargo</th>
+                <th className="px-6 py-4 text-right">Total Ganado</th>
+                <th className="px-6 py-4 text-right">Cargas Patronales</th>
+                <th className="px-6 py-4 text-right">Provisiones</th>
+                <th className="px-6 py-4 text-right">Costo Total</th>
+                <th className="px-6 py-4 text-center">Peso Relativo</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {details.map((emp, i) => (
+                <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="px-6 py-4 font-medium text-slate-800">{emp.nombre}</td>
+                  <td className="px-6 py-4 text-slate-500">{emp.cargo}</td>
+                  <td className="px-6 py-4 text-right text-slate-600">{formatCurrency(emp.totalGanado)}</td>
+                  <td className="px-6 py-4 text-right text-red-600 text-xs">+{formatCurrency(emp.aportePatronal)}</td>
+                  <td className="px-6 py-4 text-right text-amber-600 text-xs">+{formatCurrency(emp.provisiones)}</td>
+                  <td className="px-6 py-4 text-right font-bold text-blue-900 bg-blue-50/30">
+                    {formatCurrency(emp.costoTotalMensual)}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="w-24 h-1.5 bg-slate-100 rounded-full overflow-hidden mx-auto">
+                      <div 
+                        className="h-full bg-blue-500 rounded-full" 
+                        style={{ width: `${(emp.costoTotalMensual / maxCosto) * 100}%` }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Subcomponente Card
+const KPICard = ({ title, value, icon: Icon, color }) => {
+  const colors = {
+    blue: "bg-blue-50 text-blue-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+    indigo: "bg-indigo-50 text-indigo-600",
+    amber: "bg-amber-50 text-amber-600"
   };
 
   return (
-    <div className="space-y-8 animate-enter pb-10">
-      
-      {/* HEADER DE RESULTADOS */}
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-8 text-white shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500 rounded-full blur-3xl opacity-20 -mr-20 -mt-20"></div>
-        <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
-          <div>
-            <h2 className="text-3xl font-bold mb-2">Reporte de Costo Laboral</h2>
-            <p className="text-slate-400">Legislación Boliviana 2025</p>
-          </div>
-          <div className="text-right bg-white/10 backdrop-blur-sm p-4 rounded-2xl border border-white/10">
-            <p className="text-sm text-slate-300 mb-1">Costo Laboral Mensual Total</p>
-            <p className="text-4xl font-bold text-emerald-400">{formatCurrency(totals.costoLaboralMensual)}</p>
-          </div>
+    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
+      <div className="flex items-center gap-4">
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${colors[color]}`}>
+          <Icon className="w-6 h-6" />
         </div>
-      </div>
-
-      {/* TABS DE NAVEGACIÓN */}
-      <div className="flex justify-center">
-        <div className="bg-slate-100/50 p-1.5 rounded-xl border border-slate-200 inline-flex">
-          {[
-            { id: 'resumen', label: 'Dashboard Ejecutivo', icon: PieChart },
-            { id: 'detalle', label: 'Planilla Detallada', icon: FileSpreadsheet },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
-                activeTab === tab.id
-                  ? 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'
-              }`}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          ))}
+        <div>
+          <p className="text-sm text-slate-500 font-medium">{title}</p>
+          <p className="text-2xl font-bold text-slate-800">{value}</p>
         </div>
-      </div>
-
-      {/* VISTA: DASHBOARD EJECUTIVO */}
-      {activeTab === 'resumen' && (
-        <div className="space-y-6">
-          
-          {/* Tarjetas KPI */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <KpiCard 
-              title="Total Ganado" 
-              value={formatCurrency(totals.totalGanado)} 
-              icon={DollarSign} 
-              color="blue" 
-            />
-            <KpiCard 
-              title="Cargas Patronales" 
-              value={formatCurrency(totals.aportesPatronales)} 
-              subValue={`${formatPercent((totals.aportesPatronales / totals.totalGanado) * 100)} del TG`}
-              icon={Building2} 
-              color="purple" 
-            />
-            <KpiCard 
-              title="Provisiones Sociales" 
-              value={formatCurrency(totals.provisiones)} 
-              icon={Award} 
-              color="amber" 
-            />
-            <KpiCard 
-              title="Costo Promedio" 
-              value={formatCurrency(totals.costoLaboralMensual / employeeCount)} 
-              subValue={`${employeeCount} Empleados`}
-              icon={Users} 
-              color="green" 
-            />
-          </div>
-
-          {/* Gráficos y Tablas Resumen */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* Distribución por Área */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              <SectionHeader icon={PieChart} title="Distribución de Costo por Área" color="blue" />
-              <div className="space-y-5">
-                {byArea.map((area, index) => (
-                  <div key={index} className="relative">
-                    <div className="flex justify-between text-sm mb-2 z-10 relative">
-                      <span className="font-medium text-slate-700">{area.area}</span>
-                      <span className="font-bold text-slate-900">{formatCurrency(area.costoMensual)} ({area.porcentaje}%)</span>
-                    </div>
-                    <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" 
-                        style={{ width: `${area.porcentaje}%`, opacity: 0.9 }}
-                      ></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Estructura del Costo */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-              <SectionHeader icon={BarChart3} title="Estructura del Costo" color="purple" />
-              <div className="space-y-6 mt-8">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                    <span className="text-sm text-slate-600">Sueldo + Aportes</span>
-                  </div>
-                  <span className="font-bold text-slate-800">{formatPercent((totals.totalGanado / totals.costoLaboralMensual) * 100)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                    <span className="text-sm text-slate-600">Patronales</span>
-                  </div>
-                  <span className="font-bold text-slate-800">{formatPercent((totals.aportesPatronales / totals.costoLaboralMensual) * 100)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full bg-amber-500"></div>
-                    <span className="text-sm text-slate-600">Provisiones</span>
-                  </div>
-                  <span className="font-bold text-slate-800">{formatPercent((totals.provisiones / totals.costoLaboralMensual) * 100)}</span>
-                </div>
-                
-                <div className="pt-6 border-t border-slate-100 mt-4">
-                  <p className="text-xs text-slate-400 text-center leading-relaxed">
-                    Por cada <strong>Bs 100</strong> pagados al empleado, la empresa invierte <strong>Bs {roundTwo((totals.costoLaboralMensual / totals.totalGanado) * 100)}</strong> en total.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* VISTA: DETALLE DE EMPLEADOS */}
-      {activeTab === 'detalle' && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          {/* Barra de herramientas */}
-          <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row gap-4 justify-between items-center bg-slate-50/50">
-            <div className="relative w-full md:w-96">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input 
-                type="text"
-                placeholder="Buscar por nombre, cargo o área..."
-                className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white transition-all"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2">
-              <button className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all shadow-sm">
-                Descargar Excel
-              </button>
-            </div>
-          </div>
-
-          {/* Tabla */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('nombre')}>
-                    <div className="flex items-center gap-1">Nombre <SortIcon column="nombre" /></div>
-                  </th>
-                  <th className="px-6 py-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('cargo')}>
-                    <div className="flex items-center gap-1">Cargo <SortIcon column="cargo" /></div>
-                  </th>
-                  <th className="px-6 py-4 cursor-pointer hover:bg-slate-100" onClick={() => handleSort('area')}>
-                    <div className="flex items-center gap-1">Área <SortIcon column="area" /></div>
-                  </th>
-                  <th className="px-6 py-4 text-right cursor-pointer hover:bg-slate-100" onClick={() => handleSort('componentes.haberBasico')}>
-                    <div className="flex items-center justify-end gap-1">Haber Básico <SortIcon column="componentes.haberBasico" /></div>
-                  </th>
-                  <th className="px-6 py-4 text-right cursor-pointer hover:bg-slate-100" onClick={() => handleSort('componentes.totalGanado')}>
-                    <div className="flex items-center justify-end gap-1">Total Ganado <SortIcon column="componentes.totalGanado" /></div>
-                  </th>
-                  <th className="px-6 py-4 text-right cursor-pointer hover:bg-slate-100" onClick={() => handleSort('aportesPatronales.total')}>
-                    <div className="flex items-center justify-end gap-1">Aportes Pat. <SortIcon column="aportesPatronales.total" /></div>
-                  </th>
-                  <th className="px-6 py-4 text-right cursor-pointer hover:bg-slate-100" onClick={() => handleSort('provisiones.total')}>
-                    <div className="flex items-center justify-end gap-1">Provisiones <SortIcon column="provisiones.total" /></div>
-                  </th>
-                  <th className="px-6 py-4 text-right cursor-pointer hover:bg-slate-100 bg-blue-50/30" onClick={() => handleSort('costoLaboralMensual')}>
-                    <div className="flex items-center justify-end gap-1 text-blue-700">Costo Mensual <SortIcon column="costoLaboralMensual" /></div>
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredEmployees.map((emp, index) => (
-                  <tr key={index} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-slate-800">{emp.nombre}</td>
-                    <td className="px-6 py-4 text-slate-500">{emp.cargo}</td>
-                    <td className="px-6 py-4 text-slate-500">
-                      <span className="px-2 py-1 bg-slate-100 rounded-full text-xs font-medium">
-                        {emp.area}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right text-slate-600">{formatCurrency(emp.componentes.haberBasico)}</td>
-                    <td className="px-6 py-4 text-right font-medium text-slate-800">{formatCurrency(emp.componentes.totalGanado)}</td>
-                    <td className="px-6 py-4 text-right text-purple-600">{formatCurrency(emp.aportesPatronales.total)}</td>
-                    <td className="px-6 py-4 text-right text-amber-600">{formatCurrency(emp.provisiones.total)}</td>
-                    <td className="px-6 py-4 text-right font-bold text-blue-700 bg-blue-50/30">
-                      {formatCurrency(emp.costoLaboralMensual)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="p-4 border-t border-slate-200 bg-slate-50 text-xs text-slate-500 text-center">
-            Mostrando {filteredEmployees.length} de {employees.length} registros
-          </div>
-        </div>
-      )}
-
-      {/* ACTION BUTTONS */}
-      <div className="flex justify-center gap-4 pt-4">
-        <button
-          onClick={onBack}
-          className="px-6 py-3.5 border border-slate-300 text-slate-600 rounded-xl hover:bg-white hover:shadow-sm transition-all font-medium"
-        >
-          Atrás (Configuración)
-        </button>
-        <button
-          onClick={onNewCalculation}
-          className="flex items-center gap-2 px-8 py-3.5 bg-slate-800 text-white rounded-xl hover:bg-slate-900 shadow-lg hover:shadow-xl transition-all font-medium"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Iniciar Nuevo Cálculo
-        </button>
       </div>
     </div>
   );

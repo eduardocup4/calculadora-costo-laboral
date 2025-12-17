@@ -161,6 +161,7 @@ const App = () => {
       handleNextStep();
     } catch (err) {
       setError('Error al leer el archivo. Verifica el formato.');
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
@@ -175,6 +176,7 @@ const App = () => {
         const nameLower = file.name.toLowerCase();
         let month = 1;
         let year = 2025;
+        // Intenta detectar mes y año del nombre del archivo
         MONTHS.forEach((m, i) => { if (nameLower.includes(m.toLowerCase())) month = i + 1; });
         const yearMatch = nameLower.match(/20\d{2}/);
         if (yearMatch) year = parseInt(yearMatch[0]);
@@ -183,13 +185,19 @@ const App = () => {
       });
 
       const processedFiles = await Promise.all(promises);
+      // Ordenar cronológicamente
       processedFiles.sort((a, b) => (a.year * 100 + a.month) - (b.year * 100 + b.month));
       setMultiFilesData(processedFiles);
-      if (processedFiles.length > 0) setColumnMapping(autoDetectColumns(processedFiles[processedFiles.length - 1].headers));
+      
+      // Usar headers del último archivo para el mapeo
+      if (processedFiles.length > 0) {
+        setColumnMapping(autoDetectColumns(processedFiles[processedFiles.length - 1].headers));
+      }
       
       handleNextStep();
     } catch (err) {
       setError('Error al procesar múltiples archivos.');
+      console.error(err);
     } finally {
       setIsLoading(false);
     }
@@ -201,6 +209,7 @@ const App = () => {
 
   const handleCalculate = () => {
     setIsLoading(true);
+    // Timeout simulado para UX (dar tiempo al usuario a ver que algo pasa)
     setTimeout(() => {
       try {
         if (mode === 'single') {
@@ -208,6 +217,7 @@ const App = () => {
           setResults(res);
           handleNextStep();
         } else if (mode === 'predictive' || mode === 'precierre') {
+          // Calcular para cada periodo cargado
           const periodsResults = multiFilesData.map(file => ({
             ...file,
             results: calculateAll(file.data, columnMapping, config)
@@ -217,13 +227,14 @@ const App = () => {
              setMultiFilesData(periodsResults); 
              handleNextStep();
           } else {
+             // Análisis comparativo (Precierre)
              const analysisRes = analyzePrecierre(periodsResults);
              setPrecierreAnalysis(analysisRes);
              handleNextStep();
           }
         }
       } catch (err) {
-        setError('Error: ' + err.message);
+        setError('Error en el cálculo: ' + err.message);
       } finally {
         setIsLoading(false);
       }
@@ -236,7 +247,7 @@ const App = () => {
       const absences = await parseAbsenceFile(file);
       setAbsenceData(absences);
     } catch (err) {
-      alert('Error en archivo de ausencias');
+      alert('Error al leer archivo de ausencias');
     } finally {
       setIsLoadingAbsence(false);
     }
@@ -248,16 +259,16 @@ const App = () => {
     handleNextStep();
   };
 
-  // Exportaciones Dummy
-  const handleExportExcel = () => alert("Exportando a Excel...");
-  const handleExportPDF = () => alert("Generando PDF...");
+  // Funciones placeholder para exportación
+  const handleExportExcel = () => alert("Función de exportar a Excel en desarrollo.");
+  const handleExportPDF = () => alert("Función de exportar a PDF en desarrollo.");
 
   // --- RENDERIZADO ---
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-20 bg-slate-50">
       {/* HEADER GLASSMORPHISM */}
-      <header className="sticky top-0 z-50 glass border-b border-slate-200/50 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 glass border-b border-slate-200/50 backdrop-blur-xl bg-white/70">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-3 cursor-pointer group" onClick={handleBackToModes}>
             <div className="w-10 h-10 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-500/30 group-hover:scale-105 transition-transform">
@@ -295,12 +306,19 @@ const App = () => {
 
       {/* MAIN CONTENT */}
       <main>
+        {error && (
+            <div className="max-w-4xl mx-auto mt-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-center justify-between">
+                <span>{error}</span>
+                <button onClick={() => setError(null)} className="font-bold">X</button>
+            </div>
+        )}
+
         {!mode ? (
           <ModeSelector onSelectMode={handleModeSelect} />
         ) : (
           <div className="max-w-7xl mx-auto px-6 mt-10 animate-enter">
             
-            {/* WRAPPER BLANCO ELEGANTE PARA STEPS (Lo que pedía la Guía) */}
+            {/* WRAPPER BLANCO ELEGANTE PARA STEPS */}
             <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/60 border border-slate-100 p-8 md:p-12 min-h-[600px]">
               
               {currentStep === 1 && (
@@ -331,7 +349,7 @@ const App = () => {
                      onBack={handlePrevStep}
                    />
                  ) : (
-                   <div className="flex flex-col items-center justify-center h-96 text-center">
+                   <div className="flex flex-col items-center justify-center h-96 text-center animate-fade-in">
                      <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-6">
                         <TrendingUp className="w-10 h-10 text-blue-600 animate-pulse" />
                      </div>
@@ -339,14 +357,18 @@ const App = () => {
                      <p className="text-slate-500 mb-8 max-w-md">
                        Estamos normalizando los datos de {multiFilesData.length} períodos para generar el análisis.
                      </p>
-                     <button onClick={handleCalculate} className="btn-primary">
-                       Generar Análisis
+                     <button 
+                        onClick={handleCalculate} 
+                        className="px-8 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all"
+                        disabled={isLoading}
+                     >
+                       {isLoading ? 'Calculando...' : 'Generar Análisis'}
                      </button>
                    </div>
                  )
               )}
 
-              {/* RESULTADOS (Integrados en el wrapper) */}
+              {/* RESULTADOS */}
               {mode === 'single' && currentStep === 4 && results && (
                 <Results 
                   results={results} 

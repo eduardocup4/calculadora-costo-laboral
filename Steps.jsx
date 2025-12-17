@@ -1,13 +1,8 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
-  Upload, FileSpreadsheet, CheckCircle, XCircle, Settings, Download,
-  PieChart, BarChart3, Users, DollarSign, AlertTriangle, ChevronDown,
-  ChevronUp, Trash2, Calculator, Building2, GraduationCap, Shirt,
-  Filter, Search, Check, X, Save, FolderOpen, TrendingUp, TrendingDown,
-  Calendar, ArrowUpRight, ArrowDownRight, Minus, AlertCircle, UserPlus,
-  UserMinus, RefreshCw, Target, Activity, Layers, FileText, Clock,
-  ChevronRight, Eye, EyeOff, Plus, CalendarDays, Briefcase, Coffee,
-  ArrowRight, GitCompare, HelpCircle
+  Upload, CheckCircle, AlertTriangle, Calculator, 
+  TrendingUp, GitCompare, RefreshCw, HelpCircle, 
+  ArrowRight, Building2, Check, Clock
 } from 'lucide-react';
 import {
   CONSTANTS, formatCurrency, formatPercent
@@ -122,7 +117,6 @@ export const FileUpload = ({ mode, onFileUpload, onMultiUpload, isLoading }) => 
 // ============================================================================
 
 export const ColumnMapping = ({ headers, mapping, onChange, onConfirm, onBack }) => {
-  // Campos requeridos por el sistema (utils.js)
   const fields = [
     { key: 'nombre', label: 'Nombre Completo', required: true, desc: 'Nombre del empleado' },
     { key: 'cargo', label: 'Cargo', required: true, desc: 'Puesto o función' },
@@ -427,15 +421,4 @@ export const AbsenceUpload = ({ onAbsenceUpload, absenceData, onNext, onSkip, is
       </div>
     </div>
   );
-};
-
-// ============================================================================
-// 5. COMPONENTE: VALIDACIÓN DE DATOS (Resumen)
-// ============================================================================
-
-export const DataValidation = ({ validation, onContinue, onBack }) => {
-  // Este componente puede ser un modal o un paso intermedio
-  // Simplificado para integración en App.jsx si se necesita, 
-  // pero la lógica principal suele manejarse con alertas o estados directos.
-  return null; 
 };

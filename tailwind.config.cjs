@@ -1,13 +1,11 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-content: [
-  "./index.html",
-  "./**/*.{js,ts,jsx,tsx}",
-],content: [
-  "./index.html",
-  "./**/*.{js,ts,jsx,tsx}",
-],
+  content: [
+    "./index.html",
+    "./**/*.{js,ts,jsx,tsx}",
+  ],
   safelist: [
+    // Patrones para asegurar que los colores dinámicos de las tarjetas no sean purgados
     {
       pattern: /bg-(blue|emerald|purple|violet|fuchsia|amber|red|indigo|slate)-(50|100|500|600|700)/,
       variants: ['hover', 'group-hover'],
@@ -17,12 +15,6 @@ content: [
     },
     {
       pattern: /border-(blue|emerald|purple|violet|fuchsia|amber|red|indigo|slate)-(100|200|300|500)/,
-    },
-    {
-      pattern: /from-(blue|emerald|purple|violet|fuchsia|amber|red|indigo|slate)-(50|100|500|600|700)/,
-    },
-    {
-      pattern: /to-(blue|emerald|purple|violet|fuchsia|amber|red|indigo|slate)-(50|100|500|600|700)/,
     }
   ],
   theme: {
