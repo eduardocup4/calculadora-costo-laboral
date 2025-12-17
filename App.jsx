@@ -1,30 +1,76 @@
 import React, { useState } from 'react';
-import { Calculator, TrendingUp, GitCompare, Award, Scale } from 'lucide-react';
-import { parseExcel, autoDetectColumns, calculateAll, analyzePrecierre, analyzeEquity, MONTHS } from './utils.js';
+import { Calculator, TrendingUp, GitCompare, Scale } from 'lucide-react';
+import { parseExcel, parseAbsenceFile, autoDetectColumns, calculateAll, analyzePrecierre, analyzeEquity, analyzePredictive, MONTHS } from './utils.js';
 import { FileUpload, ColumnMapping, VariableDictionary, PreCalcFilters, CalculationConfig } from './Steps.jsx';
 import Results from './Results.jsx';
 import PrecierreAnalysis from './PrecierreAnalysis.jsx';
 import EquityAnalysis from './EquityAnalysis.jsx';
+import PredictiveAnalysis from './PredictiveAnalysis.jsx';
 
 const ModeSelector = ({ onSelectMode }) => {
   const modes = [
-    { id: 'single', title: 'Costo Mensual', desc: 'Reporte detallado con filtros y exportación PDF.', icon: Calculator, color: 'blue' },
-    { id: 'precierre', title: 'Auditoría Precierre', desc: 'Detecta Altas, Bajas y Variaciones vs Mes Anterior.', icon: GitCompare, color: 'emerald' },
-    { id: 'equidad', title: 'Equidad Salarial', desc: 'Análisis de brecha de género y competitividad interna.', icon: Scale, color: 'purple' }
+    { 
+      id: 'single', 
+      title: 'Costo Mensual', 
+      desc: 'Reporte detallado con filtros y exportación PDF/Excel.', 
+      icon: Calculator, 
+      gradient: 'from-blue-500 to-blue-600',
+      bg: 'bg-blue-50',
+      border: 'border-blue-200'
+    },
+    { 
+      id: 'precierre', 
+      title: 'Auditoría Precierre', 
+      desc: 'Detecta Altas, Bajas y Variaciones vs Mes Anterior.', 
+      icon: GitCompare, 
+      gradient: 'from-emerald-500 to-emerald-600',
+      bg: 'bg-emerald-50',
+      border: 'border-emerald-200'
+    },
+    { 
+      id: 'predictive', 
+      title: 'Análisis Predictivo', 
+      desc: 'Proyecciones de costo y Factor Bradford de ausentismo.', 
+      icon: TrendingUp, 
+      gradient: 'from-purple-500 to-purple-600',
+      bg: 'bg-purple-50',
+      border: 'border-purple-200'
+    },
+    { 
+      id: 'equidad', 
+      title: 'Equidad Salarial', 
+      desc: 'Análisis de brecha de género y competitividad interna.', 
+      icon: Scale, 
+      gradient: 'from-amber-500 to-amber-600',
+      bg: 'bg-amber-50',
+      border: 'border-amber-200'
+    }
   ];
 
   return (
-    <div className="max-w-6xl mx-auto mt-16 px-4 animate-enter grid md:grid-cols-3 gap-6">
+    <div className="max-w-7xl mx-auto mt-16 px-4 animate-enter">
+      <div className="text-center mb-12">
+        <h1 className="text-4xl font-bold text-slate-800 mb-3">
+          Sistema de Análisis de Costo Laboral
+        </h1>
+        <p className="text-lg text-slate-500">Selecciona el tipo de análisis que deseas realizar</p>
+      </div>
+      
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
         {modes.map(m => (
-            <button key={m.id} onClick={() => onSelectMode(m.id)} 
-                className={`text-left p-8 rounded-[2rem] bg-white border border-slate-100 shadow-xl hover:-translate-y-1 transition-all group`}>
-                <div className={`w-14 h-14 rounded-2xl bg-${m.color}-100 flex items-center justify-center mb-6 text-${m.color}-600`}>
-                    <m.icon className="w-8 h-8" />
-                </div>
-                <h3 className="text-xl font-bold text-slate-800 mb-2">{m.title}</h3>
-                <p className="text-slate-500 text-sm">{m.desc}</p>
-            </button>
+          <button 
+            key={m.id} 
+            onClick={() => onSelectMode(m.id)} 
+            className={`text-left p-8 rounded-3xl bg-white border ${m.border} shadow-lg hover:-translate-y-2 hover:shadow-xl transition-all duration-300 group`}
+          >
+            <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${m.gradient} flex items-center justify-center mb-6 text-white shadow-lg group-hover:scale-110 transition-transform`}>
+              <m.icon className="w-9 h-9" />
+            </div>
+            <h3 className="text-xl font-bold text-slate-800 mb-3">{m.title}</h3>
+            <p className="text-slate-500 text-sm leading-relaxed">{m.desc}</p>
+          </button>
         ))}
+      </div>
     </div>
   );
 };
@@ -36,43 +82,84 @@ const App = () => {
   
   // Data
   const [fileData, setFileData] = useState(null);
+  const [absenceData, setAbsenceData] = useState(null);
   const [multiFiles, setMultiFiles] = useState([]);
   const [mapping, setMapping] = useState({});
   const [extraVars, setExtraVars] = useState([]);
   const [filters, setFilters] = useState({});
-  const [config, setConfig] = useState({ aguinaldo: true, indemnizacion: true, primaUtilidades: true, segundoAguinaldo: false });
+  const [config, setConfig] = useState({ 
+    aguinaldo: true, 
+    indemnizacion: true, 
+    primaUtilidades: true, 
+    segundoAguinaldo: false 
+  });
   
   // Outputs
   const [results, setResults] = useState(null);
   const [precierreRes, setPrecierreRes] = useState(null);
   const [equityRes, setEquityRes] = useState(null);
+  const [predictiveRes, setPredictiveRes] = useState(null);
 
-  const reset = () => { setMode(null); setStep(1); setFileData(null); setMultiFiles([]); setResults(null); setPrecierreRes(null); setEquityRes(null); };
+  const reset = () => { 
+    setMode(null); 
+    setStep(1); 
+    setFileData(null); 
+    setAbsenceData(null);
+    setMultiFiles([]); 
+    setResults(null); 
+    setPrecierreRes(null); 
+    setEquityRes(null);
+    setPredictiveRes(null);
+  };
+  
   const next = () => setStep(p => p + 1);
   const prev = () => setStep(p => p - 1);
 
   const handleFileUpload = async (file) => {
       setLoading(true);
-      const { headers, data } = await parseExcel(file);
-      setFileData({ headers, data, fileName: file.name });
-      setMapping(autoDetectColumns(headers));
-      setLoading(false); next();
+      try {
+        const { headers, data } = await parseExcel(file);
+        setFileData({ headers, data, fileName: file.name });
+        setMapping(autoDetectColumns(headers));
+        next();
+      } catch(e) {
+        alert('Error al cargar archivo: ' + e.message);
+      }
+      setLoading(false);
+  };
+
+  const handleAbsenceUpload = async (file) => {
+      setLoading(true);
+      try {
+        const absences = await parseAbsenceFile(file);
+        setAbsenceData(absences);
+      } catch(e) {
+        alert('Error al cargar archivo de ausentismo: ' + e.message);
+      }
+      setLoading(false);
   };
 
   const handleMultiUpload = async (files) => {
       setLoading(true);
-      const promises = Array.from(files).map(async (f) => {
-          const res = await parseExcel(f);
-          // Detectar Mes/Año del nombre
-          let month = 1, year = 2025;
-          MONTHS.forEach((m,i) => { if(f.name.toLowerCase().includes(m.toLowerCase())) month = i+1; });
-          const y = f.name.match(/20\d{2}/); if(y) year = parseInt(y[0]);
-          return { ...res, file: f, month, year, name: f.name };
-      });
-      const processed = (await Promise.all(promises)).sort((a,b) => (a.year*100+a.month)-(b.year*100+b.month));
-      setMultiFiles(processed);
-      setMapping(autoDetectColumns(processed[processed.length-1].headers));
-      setLoading(false); next();
+      try {
+        const promises = Array.from(files).map(async (f) => {
+            const res = await parseExcel(f);
+            let month = 1, year = 2025;
+            MONTHS.forEach((m,i) => { 
+              if(f.name.toLowerCase().includes(m.toLowerCase())) month = i+1; 
+            });
+            const y = f.name.match(/20\d{2}/); 
+            if(y) year = parseInt(y[0]);
+            return { ...res, file: f, month, year, name: f.name };
+        });
+        const processed = (await Promise.all(promises)).sort((a,b) => (a.year*100+a.month)-(b.year*100+b.month));
+        setMultiFiles(processed);
+        setMapping(autoDetectColumns(processed[processed.length-1].headers));
+        next();
+      } catch(e) {
+        alert('Error al cargar archivos: ' + e.message);
+      }
+      setLoading(false);
   };
 
   const calculate = () => {
@@ -83,51 +170,164 @@ const App = () => {
                   const res = calculateAll(fileData.data, mapping, config, filters, extraVars);
                   setResults(res);
               } else if(mode === 'precierre') {
-                  const periods = multiFiles.map(p => ({ ...p, results: calculateAll(p.data, mapping, config, filters, extraVars) }));
+                  const periods = multiFiles.map(p => ({ 
+                    ...p, 
+                    results: calculateAll(p.data, mapping, config, filters, extraVars) 
+                  }));
                   setPrecierreRes(analyzePrecierre(periods));
-                  setMultiFiles(periods); // Guardar para usar nombres de periodos
+                  setMultiFiles(periods);
               } else if(mode === 'equidad') {
                   const res = calculateAll(fileData.data, mapping, config, filters, extraVars);
                   setEquityRes(analyzeEquity(res.details));
+                  setResults(res);
+              } else if(mode === 'predictive') {
+                  const periods = multiFiles.map(p => ({ 
+                    ...p, 
+                    results: calculateAll(p.data, mapping, config, filters, extraVars) 
+                  }));
+                  setPredictiveRes(analyzePredictive(periods, absenceData));
+                  setMultiFiles(periods);
               }
               next();
-          } catch(e) { alert(e.message); }
+          } catch(e) { 
+            alert('Error en cálculo: ' + e.message); 
+          }
           setLoading(false);
       }, 500);
   };
 
   return (
-    <div className="min-h-screen pb-20 bg-slate-50 font-sans text-slate-900">
-      <header className="sticky top-0 z-50 glass bg-white/80 backdrop-blur-md border-b border-slate-200">
+    <div className="min-h-screen pb-20 bg-gradient-to-br from-slate-50 to-slate-100 font-sans text-slate-900">
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-xl border-b border-slate-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={reset}>
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg"><Award /></div>
-                <h1 className="font-bold text-lg">Costo Laboral <span className="text-blue-600">v4.0</span></h1>
+            <div className="flex items-center gap-3 cursor-pointer group" onClick={reset}>
+                <div className="w-11 h-11 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg group-hover:scale-105 transition-transform">
+                  <Calculator className="w-6 h-6" />
+                </div>
+                <div>
+                  <h1 className="font-bold text-lg text-slate-800">Costo Laboral Bolivia</h1>
+                  <p className="text-xs text-slate-500">Versión 4.0 Pro</p>
+                </div>
             </div>
-            {mode && <button onClick={reset} className="text-sm font-medium text-slate-500 hover:text-blue-600">Cambiar Modo</button>}
+            {mode && (
+              <button 
+                onClick={reset} 
+                className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors px-4 py-2 rounded-lg hover:bg-blue-50"
+              >
+                ← Cambiar Modo
+              </button>
+            )}
         </div>
       </header>
 
       <main className="pt-10">
-        {!mode ? <ModeSelector onSelectMode={setMode} /> : (
-            <div className="max-w-7xl mx-auto px-6">
-                <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 p-8 md:p-12 min-h-[600px]">
-                    {step === 1 && <FileUpload mode={mode} onFileUpload={handleFileUpload} onMultiUpload={handleMultiUpload} isLoading={loading} />}
-                    {step === 2 && <ColumnMapping headers={mode==='single' || mode==='equidad' ? fileData?.headers : multiFiles[0]?.headers} mapping={mapping} onChange={setMapping} onConfirm={next} onBack={prev} />}
-                    {step === 3 && <VariableDictionary headers={mode==='single' || mode==='equidad' ? fileData?.headers : multiFiles[0]?.headers} mappedColumns={mapping} extraVars={extraVars} setExtraVars={setExtraVars} onNext={next} onBack={prev} />}
-                    {step === 4 && <PreCalcFilters data={mode==='single' || mode==='equidad' ? fileData?.data : multiFiles[0]?.data} mapping={mapping} filters={filters} setFilters={setFilters} onNext={next} onBack={prev} />}
-                    {step === 5 && (mode === 'equidad' ? 
-                        <div className="text-center py-20"><h3 className="text-2xl font-bold mb-4">Listo para analizar equidad</h3><button onClick={calculate} className="btn-primary">Generar Análisis</button></div> : 
-                        <CalculationConfig config={config} setConfig={setConfig} onCalculate={calculate} onBack={prev} />
-                    )}
-                    
-                    {step === 6 && mode === 'single' && results && <Results results={results} onBack={prev} onNewCalculation={reset} />}
-                    {step === 6 && mode === 'precierre' && precierreRes && <PrecierreAnalysis analysis={precierreRes} periodsData={multiFiles} onNewAnalysis={reset} />}
-                    {step === 6 && mode === 'equidad' && equityRes && <EquityAnalysis analysis={equityRes} onBack={reset} />}
-                </div>
+        {!mode ? (
+          <ModeSelector onSelectMode={setMode} />
+        ) : (
+          <div className="max-w-7xl mx-auto px-6">
+            <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 p-8 md:p-12 min-h-[600px]">
+              {step === 1 && (
+                <FileUpload 
+                  mode={mode} 
+                  onFileUpload={handleFileUpload} 
+                  onMultiUpload={handleMultiUpload}
+                  onAbsenceUpload={handleAbsenceUpload}
+                  absenceData={absenceData}
+                  isLoading={loading} 
+                />
+              )}
+              
+              {step === 2 && (
+                <ColumnMapping 
+                  headers={mode === 'single' || mode === 'equidad' ? fileData?.headers : multiFiles[0]?.headers} 
+                  mapping={mapping} 
+                  onChange={setMapping} 
+                  onConfirm={next} 
+                  onBack={prev} 
+                />
+              )}
+              
+              {step === 3 && (
+                <VariableDictionary 
+                  headers={mode === 'single' || mode === 'equidad' ? fileData?.headers : multiFiles[0]?.headers} 
+                  mappedColumns={mapping} 
+                  extraVars={extraVars} 
+                  setExtraVars={setExtraVars} 
+                  onNext={next} 
+                  onBack={prev} 
+                />
+              )}
+              
+              {step === 4 && (
+                <PreCalcFilters 
+                  data={mode === 'single' || mode === 'equidad' ? fileData?.data : multiFiles[0]?.data} 
+                  mapping={mapping} 
+                  filters={filters} 
+                  setFilters={setFilters} 
+                  onNext={next} 
+                  onBack={prev} 
+                />
+              )}
+              
+              {step === 5 && (
+                mode === 'equidad' ? (
+                  <div className="text-center py-20 animate-fade-in">
+                    <Scale className="w-20 h-20 text-amber-500 mx-auto mb-6" />
+                    <h3 className="text-3xl font-bold mb-4 text-slate-800">Listo para Analizar Equidad</h3>
+                    <p className="text-slate-500 mb-8">Se procesarán todos los datos para generar el análisis de brecha salarial</p>
+                    <button onClick={calculate} className="btn-primary text-lg px-10 py-4">
+                      Generar Análisis Completo
+                    </button>
+                  </div>
+                ) : (
+                  <CalculationConfig 
+                    config={config} 
+                    setConfig={setConfig} 
+                    onCalculate={calculate} 
+                    onBack={prev} 
+                  />
+                )
+              )}
+              
+              {step === 6 && mode === 'single' && results && (
+                <Results 
+                  results={results} 
+                  onBack={prev} 
+                  onNewCalculation={reset} 
+                />
+              )}
+              
+              {step === 6 && mode === 'precierre' && precierreRes && (
+                <PrecierreAnalysis 
+                  analysis={precierreRes} 
+                  periodsData={multiFiles} 
+                  onNewAnalysis={reset} 
+                />
+              )}
+              
+              {step === 6 && mode === 'equidad' && equityRes && (
+                <EquityAnalysis 
+                  analysis={equityRes}
+                  results={results}
+                  onBack={reset} 
+                />
+              )}
+              
+              {step === 6 && mode === 'predictive' && predictiveRes && (
+                <PredictiveAnalysis 
+                  analysis={predictiveRes}
+                  periodsData={multiFiles}
+                  onNewAnalysis={reset} 
+                />
+              )}
             </div>
+          </div>
         )}
       </main>
+
+      <footer className="max-w-7xl mx-auto px-6 py-8 mt-12 text-center text-sm text-slate-400">
+        <p>Sistema de Costo Laboral Bolivia 2025 - Desarrollado con React + Tailwind CSS</p>
+      </footer>
     </div>
   );
 };
