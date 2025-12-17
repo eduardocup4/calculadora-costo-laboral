@@ -3,6 +3,7 @@ module.exports = {
   content: [
     "./index.html",
     "./**/*.{js,ts,jsx,tsx}",
+    "!./node_modules/**", // <--- ESTA LÍNEA ES LA SOLUCIÓN (Ignora node_modules)
   ],
   safelist: [
     // Patrones para asegurar que los colores dinámicos de las tarjetas no sean purgados

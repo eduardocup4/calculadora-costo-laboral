@@ -1,7 +1,6 @@
 import React from 'react';
 import { 
-  TrendingUp, Users, Calendar, AlertCircle, 
-  ArrowRight, Download 
+  TrendingUp, AlertCircle, ArrowRight, Download 
 } from 'lucide-react';
 import { formatCurrency } from './utils';
 
@@ -9,7 +8,10 @@ const PredictiveAnalysis = ({ analysis, onNewAnalysis, onExportExcel }) => {
   const { trendData, bradford } = analysis;
 
   // Calculamos el máximo para escalar los gráficos CSS
-  const maxCost = Math.max(...trendData.map(d => d.costoTotal));
+  // Evitamos error si trendData está vacío
+  const maxCost = trendData.length > 0 
+    ? Math.max(...trendData.map(d => d.costoTotal)) 
+    : 0;
 
   return (
     <div className="animate-fade-in space-y-12">
@@ -47,7 +49,7 @@ const PredictiveAnalysis = ({ analysis, onNewAnalysis, onExportExcel }) => {
                         ? 'bg-purple-200 hover:bg-purple-300 border-t-2 border-purple-400 dashed' 
                         : 'bg-purple-600 hover:bg-purple-700'
                     }`}
-                    style={{ height: `${(item.costoTotal / maxCost) * 100}%` }}
+                    style={{ height: maxCost > 0 ? `${(item.costoTotal / maxCost) * 100}%` : '0%' }}
                   />
                 </div>
                 {/* Etiqueta Eje X */}
@@ -74,7 +76,8 @@ const PredictiveAnalysis = ({ analysis, onNewAnalysis, onExportExcel }) => {
           <div className="space-y-3">
              <div className="flex items-center gap-3 text-sm">
                 <span className="w-3 h-3 rounded-full bg-red-500"></span>
-                <span className="text-amber-900 font-medium">Crítico (> 250 puntos)</span>
+                {/* CORRECCIÓN AQUÍ: Usamos &gt; en lugar de > */}
+                <span className="text-amber-900 font-medium">Crítico (&gt; 250 puntos)</span>
              </div>
              <div className="flex items-center gap-3 text-sm">
                 <span className="w-3 h-3 rounded-full bg-orange-400"></span>
