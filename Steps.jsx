@@ -263,10 +263,30 @@ export const VariableDictionary = ({ headers, data, mappedColumns, mapping, extr
         return variant ? variant.tipo : 'otro';
     };
     
-    const isIncremento = (col) => {
-        const tipo = getVariantType(col);
-        return normalizeText(tipo).includes('increment') || normalizeText(tipo).includes('ingreso');
-    };
+const isIncremento = (col) => {
+    if (variants.length === 0) return true; // Sin diccionario, mostrar todas
+    
+    const variant = variants.find(v => 
+        col.includes(v.codigo) || normalizeText(col).includes(normalizeText(v.codigo))
+    );
+    
+    if (!variant) return false; // No encontrado en diccionario
+    
+    const tipo = normalizeText(variant.tipo);
+    return tipo === 'incremento' || tipo.includes('increment');
+};
+const isIncremento = (col) => {
+    if (variants.length === 0) return true; // Sin diccionario, mostrar todas
+    
+    const variant = variants.find(v => 
+        col.includes(v.codigo) || normalizeText(col).includes(normalizeText(v.codigo))
+    );
+    
+    if (!variant) return false; // No encontrado en diccionario
+    
+    const tipo = normalizeText(variant.tipo);
+    return tipo === 'incremento' || tipo.includes('increment');
+};
     
     const toggle = (col) => {
         if(!isIncremento(col) && variants.length > 0) {

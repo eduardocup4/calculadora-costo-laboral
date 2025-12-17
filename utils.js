@@ -63,17 +63,23 @@ export const parseVariantsFile = (file) => {
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(worksheet);
         
+        // Estructura esperada: Nombre | Tipo | Nuevo Nombre
         const variants = json.map(row => {
-          const keys = Object.keys(row);
           return {
-            codigo: row[keys.find(k => k.match(/codigo|clave|key/i))] || row[keys[0]],
-            nombre: row[keys.find(k => k.match(/nombre|descripcion|desc/i))] || row[keys[1]],
-            tipo: normalizeText(row[keys.find(k => k.match(/tipo|type|categoria/i))] || row[keys[2]] || 'OTRO')
+            codigo: String(row['Nombre'] || '').trim().toUpperCase(),
+            nombre: String(row['Nuevo Nombre'] || row['Nombre'] || '').trim(),
+            tipo: normalizeText(row['Tipo'] || 'OTRO')
           };
         });
         
+        console.log(`✅ Variantes cargadas: ${variants.length}`);
+        console.log(`   INCREMENTO: ${variants.filter(v => v.tipo === 'incremento').length}`);
+        console.log(`   DESCUENTO: ${variants.filter(v => v.tipo === 'descuento').length}`);
         resolve(variants);
-      } catch (err) { reject(err); }
+      } catch (err) { 
+        console.error('❌ Error parseando variantes:', err);
+        reject(err); 
+      }
     };
     reader.readAsArrayBuffer(file);
   });
@@ -81,6 +87,7 @@ export const parseVariantsFile = (file) => {
 
 // ============================================================================
 // IDENTIFICAR COLUMNAS DESPUÉS DE "LIQUIDO PAGABLE"
+// EXCLUYENDO: Duplicados (.1), Metadata, y componentes principales
 // ============================================================================
 export const getColumnsAfterLiquidoPagable = (headers) => {
   const liquidoIndex = headers.findIndex(h => 
@@ -88,19 +95,82 @@ export const getColumnsAfterLiquidoPagable = (headers) => {
   );
   
   if (liquidoIndex === -1) {
-    console.warn('No se encontró columna "Liquido Pagable", mostrando todas');
+    console.warn('⚠️ No se encontró columna "Liquido Pagable"');
     return headers;
   }
   
-  return headers.slice(liquidoIndex + 1);
+  console.log(`✅ Columna "Liquido Pagable" encontrada en posición ${liquidoIndex}: "${headers[liquidoIndex]}"`);
+  
+  const afterLiquido = headers.slice(liquidoIndex + 1);
+  
+  // Lista de keywords para metadata
+  const metadataKeywords = [
+    'cargo', 'nombre', 'gerente', 'superior', 'oficina', 'tipo', 
+    'contrato', 'afp que', 'aporta', 'estado', 'discapacidad', 
+    'tutor', 'recibe', 'nivel', 'fecha', 'codigo', 'saldo',
+    'modelo', 'asignado', 'trabajo', 'personal', 'jerarquico',
+    'jubilacion', 'vacacion', 'salida', 'sap'
+  ];
+  
+  const excluded = afterLiquido.filter(h => {
+    const norm = normalizeText(h);
+    const original = String(h);
+    
+    // 1. Excluir columnas con ".1" (duplicados automáticos de Excel)
+    if (original.includes('.1')) {
+      console.log(`🚫 Excluida (duplicado .1): ${h}`);
+      return false;
+    }
+    
+    // 2. Excluir duplicados de componentes principales
+    const isHaber = norm.includes('haber') && norm.includes('bas');
+    const isAntiguedad = norm.includes('antig');
+    const isDominical = norm.includes('dominical');
+    const isProduccion = norm.includes('produccion') || norm.includes('producc');
+    
+    if (isHaber || isAntiguedad || isDominical || isProduccion) {
+      console.log(`🚫 Excluida (componente principal duplicado): ${h}`);
+      return false;
+    }
+    
+    // 3. Excluir metadata (columnas administrativas)
+    const isMetadata = metadataKeywords.some(kw => norm.includes(kw));
+    if (isMetadata) {
+      console.log(`ℹ️  Excluida (metadata): ${h}`);
+      return false;
+    }
+    
+    // 4. Columna válida
+    console.log(`✅ Incluida: ${h}`);
+    return true;
+  });
+  
+  console.log(`📊 Resumen: ${afterLiquido.length} columnas → ${excluded.length} válidas (excluidas ${afterLiquido.length - excluded.length})`);
+  return excluded;
 };
 
 // ============================================================================
 // VALIDAR SUMA DE VARIABLES = TOTAL GANADO
 // ============================================================================
 export const validateVariablesSum = (data, mapping, selectedVars) => {
+  if(!data || data.length === 0) {
+    console.error('❌ No hay datos para validar');
+    return { validation: [], allValid: false, sampleSize: 0 };
+  }
+  
   const sampleSize = Math.min(5, data.length);
   const validation = [];
+  
+  console.log('🔍 Validando con:', {
+    sampleSize,
+    columnas_principales: {
+      haberBasico: mapping.haberBasico,
+      bonoAntiguedad: mapping.bonoAntiguedad,
+      bonoDominical: mapping.bonoDominical,
+      totalGanado: mapping.totalGanado
+    },
+    variantes_seleccionadas: selectedVars.length
+  });
   
   for (let i = 0; i < sampleSize; i++) {
     const row = data[i];
@@ -111,12 +181,13 @@ export const validateVariablesSum = (data, mapping, selectedVars) => {
     
     let sumOtrosBonos = 0;
     selectedVars.forEach(v => {
-      sumOtrosBonos += parseNumber(row[v.originalName]) || 0;
+      const val = parseNumber(row[v.originalName]) || 0;
+      sumOtrosBonos += val;
     });
     
     const calculatedTotal = haberBasico + bonoAntiguedad + bonoDominical + sumOtrosBonos;
     const diff = Math.abs(totalGanado - calculatedTotal);
-    const isValid = diff < 1;
+    const isValid = diff < 1; // Tolerancia de 1 BOB por redondeos
     
     validation.push({
       rowIndex: i,
@@ -130,9 +201,14 @@ export const validateVariablesSum = (data, mapping, selectedVars) => {
       diferencia: diff,
       isValid
     });
+    
+    if (!isValid) {
+      console.warn(`⚠️ Fila ${i}: diferencia de ${diff.toFixed(2)} BOB`);
+    }
   }
   
   const allValid = validation.every(v => v.isValid);
+  console.log(`${allValid ? '✅' : '❌'} Validación: ${validation.filter(v => v.isValid).length}/${sampleSize} filas correctas`);
   return { validation, allValid, sampleSize };
 };
 
@@ -165,6 +241,11 @@ export const analyzeSeniorityProjection = (data, mapping) => {
     byPerson: []
   };
   
+  if(!data || !mapping) {
+    console.error('❌ Faltan datos o mapping para proyección antigüedad');
+    return projections;
+  }
+  
   data.forEach(row => {
     const nombre = row[mapping.nombre];
     const fechaIngreso = formatDate(row[mapping.fechaIngreso]);
@@ -175,6 +256,7 @@ export const analyzeSeniorityProjection = (data, mapping) => {
     if (!fechaIngreso) return;
     
     const projection = getSeniorityProjection(fechaIngreso);
+    if(!projection) return;
     
     projections.byPerson.push({
       nombre,
@@ -226,6 +308,11 @@ export const analyzeSeniorityProjection = (data, mapping) => {
   });
   
   projections.byPerson.sort((a, b) => b.incremento36m - a.incremento36m);
+  
+  console.log('📊 Proyección antigüedad:', {
+    personas: projections.byPerson.length,
+    grupos: Object.keys(projections.byGroup).length
+  });
   
   return projections;
 };
@@ -301,6 +388,18 @@ export const analyzeEquity = (data) => {
 // CÁLCULO PRINCIPAL
 // ============================================================================
 export const calculateAll = (data, mapping, config, filters, extraVars = []) => {
+  console.log('🔄 calculateAll iniciado:', {
+    registros: data?.length,
+    mappingKeys: Object.keys(mapping).length,
+    extraVarsCount: extraVars.length,
+    filtersActive: Object.keys(filters).filter(k => filters[k] && filters[k] !== 'Todas').length
+  });
+  
+  if(!data || data.length === 0) {
+    console.error('❌ No hay datos para calcular');
+    return { summary: { ganado: 0, patronal: 0, provisiones: 0, costo: 0, count: 0, cargas: {} }, details: [] };
+  }
+  
   const filteredData = data.filter(row => {
     if (filters.empresa && filters.empresa !== 'Todas' && row[mapping.empresa] !== filters.empresa) return false;
     if (filters.regional && filters.regional !== 'Todas' && row[mapping.regional] !== filters.regional) return false;
@@ -308,6 +407,8 @@ export const calculateAll = (data, mapping, config, filters, extraVars = []) => 
     if (filters.cargo && filters.cargo !== 'Todas' && row[mapping.cargo] !== filters.cargo) return false;
     return true;
   });
+
+  console.log(`📊 Filtrado: ${data.length} → ${filteredData.length} registros`);
 
   const totals = { 
     ganado: 0, patronal: 0, provisiones: 0, costo: 0, count: 0,
@@ -320,15 +421,16 @@ export const calculateAll = (data, mapping, config, filters, extraVars = []) => 
     const fechaIngreso = formatDate(row[mapping.fechaIngreso]);
     const fechaRetiro = formatDate(row[mapping.fechaRetiro]);
     
-    let bonoAntiguedad = parseNumber(row[mapping.bonoAntiguedad]);
+    let bonoAntiguedad = parseNumber(row[mapping.bonoAntiguedad]) || 0;
     if (bonoAntiguedad === 0 && fechaIngreso) {
-        bonoAntiguedad = getSeniorityProjection(fechaIngreso)[0];
+        const proj = getSeniorityProjection(fechaIngreso);
+        bonoAntiguedad = proj ? proj[0] : 0;
     }
 
     let otrosBonos = 0;
     const breakdown = {}; 
     extraVars.forEach(v => {
-        const val = parseNumber(row[v.originalName]);
+        const val = parseNumber(row[v.originalName]) || 0;
         if (v.isComputable) otrosBonos += val;
         breakdown[v.alias] = val; 
     });
@@ -383,14 +485,23 @@ export const calculateAll = (data, mapping, config, filters, extraVars = []) => 
     };
   });
 
+  console.log('✅ Cálculo completado:', {
+    empleados: totals.count,
+    costoTotal: formatCurrency(totals.costo)
+  });
+
   return { summary: totals, details };
 };
 
 // ============================================================================
-// AUDITORÍA PRECIERRE (CON VARIACIONES NO SALARIALES)
+// AUDITORÍA PRECIERRE
 // ============================================================================
 export const analyzePrecierre = (periodsData) => {
-    if(periodsData.length < 2) return null;
+    if(!periodsData || periodsData.length < 2) {
+      console.error('❌ Se necesitan al menos 2 periodos para precierre');
+      return null;
+    }
+    
     const sorted = [...periodsData].sort((a, b) => (a.year * 100 + a.month) - (b.year * 100 + b.month));
     const current = sorted[sorted.length-1].results.details;
     const prev = sorted[sorted.length-2].results.details;
@@ -503,11 +614,19 @@ export const analyzePrecierre = (periodsData) => {
         percentage: ((sorted[sorted.length-1].results.summary.costo - sorted[sorted.length-2].results.summary.costo) / sorted[sorted.length-2].results.summary.costo) * 100
     };
 
+    console.log('📊 Precierre:', { 
+      altas: altas.length, 
+      bajas: bajas.length, 
+      variaciones: variaciones.length, 
+      variacionesNoSalariales: variacionesNoSalariales.length,
+      alerts: alerts.length
+    });
+
     return { altas, bajas, variaciones, variacionesNoSalariales, generalDiff, alerts };
 };
 
 // ============================================================================
-// ANÁLISIS PREDICTIVO (CON TABLA ESTADÍSTICA)
+// ANÁLISIS PREDICTIVO
 // ============================================================================
 export const analyzePredictive = (periodsData, absenceData) => {
     const trendData = periodsData.map(p => ({
@@ -539,7 +658,6 @@ export const analyzePredictive = (periodsData, absenceData) => {
     }
 
     const bradford = calculateBradford(periodsData[periodsData.length - 1].results.details, absenceData);
-    
     const statsTable = buildStatsTable(periodsData);
 
     return { trendData, bradford, statsTable };
@@ -694,8 +812,13 @@ export const parseExcel = (file) => {
         const workbook = XLSX.read(data, { type: 'array' });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-        resolve({ headers: jsonData[0], data: XLSX.utils.sheet_to_json(worksheet) });
-      } catch (error) { reject(error); }
+        const parsed = { headers: jsonData[0], data: XLSX.utils.sheet_to_json(worksheet) };
+        console.log(`📄 Archivo: ${file.name} | ${parsed.data.length} filas, ${parsed.headers.length} columnas`);
+        resolve(parsed);
+      } catch (error) { 
+        console.error('❌ Error parseando Excel:', error);
+        reject(error); 
+      }
     };
     reader.readAsArrayBuffer(file);
   });
@@ -719,8 +842,12 @@ export const parseAbsenceFile = (file) => {
             dias: parseNumber(row[keys.find(k => k.match(/dia|duracion/i))]) || 1
           };
         });
+        console.log(`📊 Ausentismo: ${absences.length} registros`);
         resolve(absences);
-      } catch (err) { reject(err); }
+      } catch (err) { 
+        console.error('❌ Error parseando ausentismo:', err);
+        reject(err); 
+      }
     };
     reader.readAsArrayBuffer(file);
   });
@@ -732,10 +859,10 @@ export const autoDetectColumns = (headers) => {
   const rules = {
     ci: ['ci', 'cedula', 'carnet', 'documento'],
     nombre: ['nombre', 'empleado', 'trabajador'],
-    cargo: ['cargo', 'puesto'],
-    area: ['area', 'departamento'],
+    cargo: ['cargo', 'puesto', 'ocup', 'desempe'],
+    area: ['area', 'departamento', 'grupo'],
     regional: ['regional', 'ciudad', 'sucursal'], 
-    empresa: ['empresa', 'razon', 'compania'],
+    empresa: ['empresa', 'razon', 'compania', 'unidad'],
     genero: ['genero', 'sexo'],
     haberBasico: ['haber', 'basico', 'sueldo'],
     bonoAntiguedad: ['antiguedad'],
@@ -750,6 +877,7 @@ export const autoDetectColumns = (headers) => {
         if(!mapping[key] && list.some(k => norm.includes(k))) mapping[key] = h;
     }
   });
+  console.log('🗺️ Mapeo automático:', Object.keys(mapping).length, 'columnas detectadas');
   return mapping;
 };
 

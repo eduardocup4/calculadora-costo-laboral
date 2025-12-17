@@ -84,6 +84,7 @@ const App = () => {
   const [fileData, setFileData] = useState(null);
   const [absenceData, setAbsenceData] = useState(null);
   const [multiFiles, setMultiFiles] = useState([]);
+  const [allHeaders, setAllHeaders] = useState([]); // NUEVO: Headers consolidados
   const [mapping, setMapping] = useState({});
   const [extraVars, setExtraVars] = useState([]);
   const [filters, setFilters] = useState({});
@@ -105,7 +106,11 @@ const App = () => {
     setStep(1); 
     setFileData(null); 
     setAbsenceData(null);
-    setMultiFiles([]); 
+    setMultiFiles([]);
+    setAllHeaders([]);
+    setMapping({});
+    setExtraVars([]);
+    setFilters({});
     setResults(null); 
     setPrecierreRes(null); 
     setEquityRes(null);
@@ -120,10 +125,12 @@ const App = () => {
       try {
         const { headers, data } = await parseExcel(file);
         setFileData({ headers, data, fileName: file.name });
+        setAllHeaders(headers); // Guardar headers
         setMapping(autoDetectColumns(headers));
         next();
       } catch(e) {
         alert('Error al cargar archivo: ' + e.message);
+        console.error(e);
       }
       setLoading(false);
   };
@@ -135,6 +142,7 @@ const App = () => {
         setAbsenceData(absences);
       } catch(e) {
         alert('Error al cargar archivo de ausentismo: ' + e.message);
+        console.error(e);
       }
       setLoading(false);
   };
@@ -154,10 +162,18 @@ const App = () => {
         });
         const processed = (await Promise.all(promises)).sort((a,b) => (a.year*100+a.month)-(b.year*100+b.month));
         setMultiFiles(processed);
-        setMapping(autoDetectColumns(processed[processed.length-1].headers));
+        
+        // CORREGIDO: Consolidar headers de TODOS los archivos
+        const consolidatedHeaders = new Set();
+        processed.forEach(p => p.headers.forEach(h => consolidatedHeaders.add(h)));
+        const uniqueHeaders = Array.from(consolidatedHeaders);
+        
+        setAllHeaders(uniqueHeaders);
+        setMapping(autoDetectColumns(uniqueHeaders));
         next();
       } catch(e) {
         alert('Error al cargar archivos: ' + e.message);
+        console.error(e);
       }
       setLoading(false);
   };
@@ -166,31 +182,41 @@ const App = () => {
       setLoading(true);
       setTimeout(() => {
           try {
+              console.log('Calculando con:', { mode, mapping, extraVars, filters, config });
+              
               if(mode === 'single') {
                   const res = calculateAll(fileData.data, mapping, config, filters, extraVars);
+                  console.log('Resultado single:', res);
                   setResults(res);
               } else if(mode === 'precierre') {
                   const periods = multiFiles.map(p => ({ 
                     ...p, 
                     results: calculateAll(p.data, mapping, config, filters, extraVars) 
                   }));
-                  setPrecierreRes(analyzePrecierre(periods));
+                  const analysis = analyzePrecierre(periods);
+                  console.log('Resultado precierre:', analysis);
+                  setPrecierreRes(analysis);
                   setMultiFiles(periods);
               } else if(mode === 'equidad') {
                   const res = calculateAll(fileData.data, mapping, config, filters, extraVars);
-                  setEquityRes(analyzeEquity(res.details));
+                  const equity = analyzeEquity(res.details);
+                  console.log('Resultado equidad:', equity);
+                  setEquityRes(equity);
                   setResults(res);
               } else if(mode === 'predictive') {
                   const periods = multiFiles.map(p => ({ 
                     ...p, 
                     results: calculateAll(p.data, mapping, config, filters, extraVars) 
                   }));
-                  setPredictiveRes(analyzePredictive(periods, absenceData));
+                  const predictive = analyzePredictive(periods, absenceData);
+                  console.log('Resultado predictivo:', predictive);
+                  setPredictiveRes(predictive);
                   setMultiFiles(periods);
               }
               next();
           } catch(e) { 
             alert('Error en cálculo: ' + e.message); 
+            console.error('Error detallado:', e);
           }
           setLoading(false);
       }, 500);
@@ -239,7 +265,7 @@ const App = () => {
               
               {step === 2 && (
                 <ColumnMapping 
-                  headers={mode === 'single' || mode === 'equidad' ? fileData?.headers : multiFiles[0]?.headers} 
+                  headers={allHeaders.length > 0 ? allHeaders : (mode === 'single' || mode === 'equidad' ? fileData?.headers : multiFiles[0]?.headers)} 
                   mapping={mapping} 
                   onChange={setMapping} 
                   onConfirm={next} 
@@ -249,8 +275,10 @@ const App = () => {
               
               {step === 3 && (
                 <VariableDictionary 
-                  headers={mode === 'single' || mode === 'equidad' ? fileData?.headers : multiFiles[0]?.headers} 
+                  headers={allHeaders.length > 0 ? allHeaders : (mode === 'single' || mode === 'equidad' ? fileData?.headers : multiFiles[0]?.headers)} 
+                  data={mode === 'single' || mode === 'equidad' ? fileData?.data : multiFiles[0]?.data}
                   mappedColumns={mapping} 
+                  mapping={mapping}
                   extraVars={extraVars} 
                   setExtraVars={setExtraVars} 
                   onNext={next} 
