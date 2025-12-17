@@ -2,9 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   Upload, CheckCircle, Calculator, Filter, 
   ArrowRight, Plus, Trash2, Building2, Check, HelpCircle,
-  TrendingUp, GitCompare, RefreshCw, AlertTriangle, Scale, FileBarChart
+  TrendingUp, GitCompare, RefreshCw, AlertTriangle, Scale, FileBarChart,
+  Eye, AlertCircle as AlertIcon, X
 } from 'lucide-react';
-import { extractUniqueValues, formatPercent, CONSTANTS, formatCurrency } from './utils';
+import { 
+  extractUniqueValues, formatPercent, CONSTANTS, formatCurrency,
+  parseVariantsFile, getColumnsAfterLiquidoPagable, validateVariablesSum, 
+  parseNumber
+} from './utils';
 
 // ============================================================================
 // 1. CARGA DE ARCHIVOS (MEJORADO)
@@ -59,25 +64,14 @@ export const FileUpload = ({ mode, onFileUpload, onMultiUpload, onAbsenceUpload,
         <p className="text-slate-500 text-lg">{config.desc}</p>
       </div>
 
-      {/* Upload Principal */}
       <div 
         onDragEnter={handleDrag} 
         onDragOver={handleDrag} 
         onDragLeave={handleDrag} 
         onDrop={handleDrop}
-        className={`relative border-3 border-dashed rounded-3xl p-12 text-center transition-all duration-300 ${
-          dragActive 
-            ? `border-${config.color}-500 bg-${config.color}-50 scale-105` 
-            : 'border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400'
-        }`}
+        className={`relative border-3 border-dashed rounded-3xl p-12 text-center transition-all duration-300 ${dragActive ? `border-${config.color}-500 bg-${config.color}-50 scale-105` : 'border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400'}`}
       >
-        <input 
-          type="file" 
-          multiple={mode === 'precierre' || mode === 'predictive'} 
-          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-          onChange={handleChange} 
-          accept=".xlsx, .xls, .csv" 
-        />
+        <input type="file" multiple={mode === 'precierre' || mode === 'predictive'} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleChange} accept=".xlsx, .xls, .csv" />
         
         {isLoading ? (
           <div className="py-4">
@@ -95,21 +89,14 @@ export const FileUpload = ({ mode, onFileUpload, onMultiUpload, onAbsenceUpload,
         )}
       </div>
 
-      {/* Upload Ausentismo (Solo modo Predictive) */}
       {mode === 'predictive' && (
         <div className="mt-8">
           <div className="flex items-center gap-2 mb-4">
             <FileBarChart className="w-5 h-5 text-purple-600" />
             <h3 className="font-bold text-slate-700">Archivo de Ausentismo (Opcional)</h3>
           </div>
-          
           <div className="relative border-2 border-dashed border-purple-300 rounded-2xl p-8 text-center bg-purple-50/30 hover:bg-purple-50 transition-all">
-            <input 
-              type="file" 
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-              onChange={handleAbsenceChange} 
-              accept=".xlsx, .xls, .csv" 
-            />
+            <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" onChange={handleAbsenceChange} accept=".xlsx, .xls, .csv" />
             {absenceData ? (
               <div className="flex items-center justify-center gap-3 text-purple-700">
                 <CheckCircle className="w-6 h-6" />
@@ -121,16 +108,6 @@ export const FileUpload = ({ mode, onFileUpload, onMultiUpload, onAbsenceUpload,
                 <p className="text-sm text-purple-700 font-medium">Carga archivo con: Nombre, Tipo, Días</p>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {mode === 'predictive' && !absenceData && (
-        <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold mb-1">Recomendación</p>
-            <p>Para calcular el Factor Bradford, sube un archivo con registros de ausentismo (columnas: Nombre del empleado, Tipo de ausencia, Días de duración)</p>
           </div>
         </div>
       )}
@@ -148,13 +125,14 @@ export const ColumnMapping = ({ headers, mapping, onChange, onConfirm, onBack })
     { key: 'area', label: 'Área / Dpto', required: true, icon: '🏢' },
     { key: 'haberBasico', label: 'Haber Básico', required: true, icon: '💰' },
     { key: 'ci', label: 'Cédula (CI)', required: true, desc: 'Clave para auditoría', icon: '🆔' },
+    { key: 'totalGanado', label: 'Total Ganado', required: true, desc: 'Para validación', icon: '💵' },
     { key: 'regional', label: 'Regional / Ciudad', required: false, desc: 'Para filtrar por ciudad', icon: '📍' },
     { key: 'empresa', label: 'Empresa / Razón Social', required: false, desc: 'Para filtrar por empresa', icon: '🏭' },
     { key: 'fechaIngreso', label: 'Fecha Ingreso', required: false, desc: 'Para antigüedad', icon: '📅' },
     { key: 'fechaRetiro', label: 'Fecha Retiro', required: false, desc: 'Para detectar bajas', icon: '🚪' },
     { key: 'genero', label: 'Género', required: false, desc: 'Para módulo de equidad', icon: '⚧' },
     { key: 'bonoAntiguedad', label: 'Bono Antigüedad', required: false, icon: '🎖️' },
-    { key: 'totalGanado', label: 'Total Ganado', required: false, icon: '💵' },
+    { key: 'bonoDominical', label: 'Bono Dominical', required: false, icon: '📅' },
   ];
 
   const requiredFields = fields.filter(f => f.required);
@@ -176,15 +154,11 @@ export const ColumnMapping = ({ headers, mapping, onChange, onConfirm, onBack })
             <span className="text-sm font-bold text-slate-700">{progress}/{requiredFields.length}</span>
           </div>
           <div className="w-full md:w-48 h-3 bg-slate-200 rounded-full overflow-hidden shadow-inner">
-            <div 
-              className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500 rounded-full" 
-              style={{ width: `${progressPct}%` }} 
-            />
+            <div className="h-full bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-500 rounded-full" style={{ width: `${progressPct}%` }} />
           </div>
         </div>
       </div>
 
-      {/* Campos Obligatorios */}
       <div className="mb-8">
         <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
           <span className="w-2 h-2 bg-red-500 rounded-full"></span>
@@ -197,7 +171,6 @@ export const ColumnMapping = ({ headers, mapping, onChange, onConfirm, onBack })
         </div>
       </div>
 
-      {/* Campos Opcionales */}
       <div className="mb-8">
         <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
           <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
@@ -211,21 +184,8 @@ export const ColumnMapping = ({ headers, mapping, onChange, onConfirm, onBack })
       </div>
 
       <div className="flex justify-between items-center pt-6 border-t border-slate-200">
-        <button 
-          onClick={onBack} 
-          className="text-slate-600 hover:text-slate-800 font-medium px-6 py-3 rounded-xl hover:bg-slate-100 transition-all"
-        >
-          ← Atrás
-        </button>
-        <button 
-          onClick={onConfirm} 
-          disabled={!canContinue}
-          className={`flex items-center gap-2 px-8 py-3 rounded-xl font-bold transition-all ${
-            canContinue 
-              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5' 
-              : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-          }`}
-        >
+        <button onClick={onBack} className="text-slate-600 hover:text-slate-800 font-medium px-6 py-3 rounded-xl hover:bg-slate-100 transition-all">← Atrás</button>
+        <button onClick={onConfirm} disabled={!canContinue} className={`flex items-center gap-2 px-8 py-3 rounded-xl font-bold transition-all ${canContinue ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
           Confirmar Mapeo <ArrowRight className="w-5 h-5" />
         </button>
       </div>
@@ -235,13 +195,8 @@ export const ColumnMapping = ({ headers, mapping, onChange, onConfirm, onBack })
 
 const FieldMapper = ({ field, headers, mapping, onChange }) => {
   const isMapped = !!mapping[field.key];
-  
   return (
-    <div className={`p-5 rounded-2xl border-2 transition-all ${
-      isMapped 
-        ? 'border-emerald-400 bg-gradient-to-br from-emerald-50 to-emerald-100/50 shadow-md' 
-        : 'border-slate-200 bg-white hover:border-slate-300'
-    }`}>
+    <div className={`p-5 rounded-2xl border-2 transition-all ${isMapped ? 'border-emerald-400 bg-gradient-to-br from-emerald-50 to-emerald-100/50 shadow-md' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
       <label className="block mb-3">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -251,41 +206,92 @@ const FieldMapper = ({ field, headers, mapping, onChange }) => {
           {field.required && <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-1 rounded">REQUERIDO</span>}
           {isMapped && <CheckCircle className="w-5 h-5 text-emerald-600" />}
         </div>
-        
-        <select 
-          value={mapping[field.key] || ''} 
-          onChange={(e) => onChange({...mapping, [field.key]: e.target.value})} 
-          className="w-full p-2.5 text-sm border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white transition-all"
-        >
+        <select value={mapping[field.key] || ''} onChange={(e) => onChange({...mapping, [field.key]: e.target.value})} className="w-full p-2.5 text-sm border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white transition-all">
           <option value="">-- Seleccionar columna --</option>
           {headers.map(h => <option key={h} value={h}>{h}</option>)}
         </select>
       </label>
-      
-      {field.desc && (
-        <p className="text-xs text-slate-500 mt-2 flex items-start gap-1">
-          <HelpCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />
-          {field.desc}
-        </p>
-      )}
+      {field.desc && <p className="text-xs text-slate-500 mt-2 flex items-start gap-1"><HelpCircle className="w-3 h-3 mt-0.5 flex-shrink-0" />{field.desc}</p>}
     </div>
   );
 };
 
 // ============================================================================
-// 3. DICCIONARIO DE VARIABLES
+// 3. DICCIONARIO DE VARIABLES (MEJORADO CON VALIDACIÓN)
 // ============================================================================
-export const VariableDictionary = ({ headers, mappedColumns, extraVars, setExtraVars, onNext, onBack }) => {
+export const VariableDictionary = ({ headers, data, mappedColumns, mapping, extraVars, setExtraVars, onNext, onBack }) => {
+    const [variantsFile, setVariantsFile] = useState(null);
+    const [variants, setVariants] = useState([]);
+    const [renamedHeaders, setRenamedHeaders] = useState({});
+    const [validation, setValidation] = useState(null);
+    const [showPreview, setShowPreview] = useState(false);
+    
     const used = Object.values(mappedColumns);
-    const available = headers.filter(h => !used.includes(h));
+    const afterLiquido = getColumnsAfterLiquidoPagable(headers);
+    const available = afterLiquido.filter(h => !used.includes(h));
+    
+    const handleVariantsUpload = async (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+        
+        try {
+            const parsedVariants = await parseVariantsFile(file);
+            setVariants(parsedVariants);
+            setVariantsFile(file.name);
+            
+            const renamed = {};
+            available.forEach(col => {
+                const variant = parsedVariants.find(v => 
+                    col.includes(v.codigo) || normalizeText(col).includes(normalizeText(v.codigo))
+                );
+                if(variant) {
+                    renamed[col] = `${variant.nombre} (${variant.tipo.toUpperCase()})`;
+                }
+            });
+            setRenamedHeaders(renamed);
+        } catch(err) {
+            alert('Error al cargar archivo de variantes: ' + err.message);
+        }
+    };
+    
+    const getDisplayName = (col) => renamedHeaders[col] || col;
+    
+    const getVariantType = (col) => {
+        const variant = variants.find(v => 
+            col.includes(v.codigo) || normalizeText(col).includes(normalizeText(v.codigo))
+        );
+        return variant ? variant.tipo : 'otro';
+    };
+    
+    const isIncremento = (col) => {
+        const tipo = getVariantType(col);
+        return normalizeText(tipo).includes('increment') || normalizeText(tipo).includes('ingreso');
+    };
     
     const toggle = (col) => {
+        if(!isIncremento(col) && variants.length > 0) {
+            alert('Solo se pueden seleccionar variantes tipo INCREMENTO');
+            return;
+        }
+        
         if(extraVars.find(v => v.originalName === col)) {
           setExtraVars(extraVars.filter(v => v.originalName !== col));
         } else {
-          setExtraVars([...extraVars, { originalName: col, alias: col, isComputable: true }]);
+          setExtraVars([...extraVars, { originalName: col, alias: getDisplayName(col), isComputable: true }]);
         }
     };
+    
+    useEffect(() => {
+        if(extraVars.length > 0 && data && data.length > 0) {
+            const result = validateVariablesSum(data, mapping, extraVars);
+            setValidation(result);
+        } else {
+            setValidation(null);
+        }
+    }, [extraVars, data, mapping]);
+
+    const incrementoVars = available.filter(isIncremento);
+    const otherVars = available.filter(c => !isIncremento(c));
 
     return (
         <div className="max-w-5xl mx-auto animate-fade-in">
@@ -293,63 +299,138 @@ export const VariableDictionary = ({ headers, mappedColumns, extraVars, setExtra
               <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white mx-auto mb-6 shadow-lg">
                 <Plus className="w-9 h-9" />
               </div>
-              <h2 className="text-3xl font-bold text-slate-800 mb-3">Diccionario de Variables Adicionales</h2>
-              <p className="text-slate-500 text-lg">Selecciona columnas extra (bonos, comisiones) para incluir en Total Ganado</p>
+              <h2 className="text-3xl font-bold text-slate-800 mb-3">Validación de Variables Adicionales</h2>
+              <p className="text-slate-500 text-lg">Total Ganado = Haber Básico + Bono Antigüedad + Bono Dominical + Otros Bonos</p>
             </div>
 
-            <div className="bg-gradient-to-br from-slate-50 to-white p-6 rounded-3xl border-2 border-slate-200 shadow-lg mb-8">
+            {/* Upload de Variantes */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-2xl border-2 border-blue-200 mb-8">
+                <h3 className="font-bold text-blue-900 mb-3 flex items-center gap-2">
+                    <FileBarChart className="w-5 h-5" />
+                    Archivo de Variantes (Opcional pero Recomendado)
+                </h3>
+                <p className="text-sm text-blue-700 mb-4">Sube un archivo con: Código | Nombre | Tipo (INCREMENTO/DESCUENTO)</p>
+                <div className="relative">
+                    <input type="file" onChange={handleVariantsUpload} accept=".xlsx,.xls,.csv" className="absolute inset-0 opacity-0 cursor-pointer" />
+                    <div className="p-4 bg-white rounded-xl border-2 border-dashed border-blue-300 hover:border-blue-500 transition-all flex items-center justify-center gap-3">
+                        {variantsFile ? (
+                            <>
+                                <CheckCircle className="w-5 h-5 text-emerald-600" />
+                                <span className="font-medium text-slate-700">{variantsFile} - {variants.length} variantes cargadas</span>
+                            </>
+                        ) : (
+                            <>
+                                <Upload className="w-5 h-5 text-blue-500" />
+                                <span className="text-slate-600">Click para cargar archivo de variantes</span>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Validación en Tiempo Real */}
+            {validation && (
+                <div className={`p-6 rounded-2xl border-2 mb-8 ${validation.allValid ? 'bg-emerald-50 border-emerald-300' : 'bg-red-50 border-red-300'}`}>
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold flex items-center gap-2">
+                            {validation.allValid ? 
+                                <><CheckCircle className="w-5 h-5 text-emerald-600" /> Validación Exitosa</> :
+                                <><AlertIcon className="w-5 h-5 text-red-600" /> Validación Fallida</>
+                            }
+                        </h3>
+                        <button onClick={() => setShowPreview(!showPreview)} className="text-sm font-medium text-blue-600 hover:underline flex items-center gap-1">
+                            <Eye className="w-4 h-4" /> {showPreview ? 'Ocultar' : 'Ver'} Preview
+                        </button>
+                    </div>
+                    
+                    {showPreview && (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-xs">
+                                <thead className="bg-slate-100">
+                                    <tr>
+                                        <th className="p-2 text-left">Nombre</th>
+                                        <th className="p-2 text-right">Haber</th>
+                                        <th className="p-2 text-right">Antigüedad</th>
+                                        <th className="p-2 text-right">Dominical</th>
+                                        <th className="p-2 text-right">Otros</th>
+                                        <th className="p-2 text-right">Calculado</th>
+                                        <th className="p-2 text-right">Esperado</th>
+                                        <th className="p-2 text-center">Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {validation.validation.map((v, i) => (
+                                        <tr key={i} className={v.isValid ? '' : 'bg-red-100'}>
+                                            <td className="p-2">{v.nombre}</td>
+                                            <td className="p-2 text-right">{formatCurrency(v.haberBasico)}</td>
+                                            <td className="p-2 text-right">{formatCurrency(v.bonoAntiguedad)}</td>
+                                            <td className="p-2 text-right">{formatCurrency(v.bonoDominical)}</td>
+                                            <td className="p-2 text-right">{formatCurrency(v.otrosBonos)}</td>
+                                            <td className="p-2 text-right font-bold">{formatCurrency(v.totalCalculado)}</td>
+                                            <td className="p-2 text-right">{formatCurrency(v.totalEsperado)}</td>
+                                            <td className="p-2 text-center">
+                                                {v.isValid ? <CheckCircle className="w-4 h-4 text-emerald-600 mx-auto" /> : <X className="w-4 h-4 text-red-600 mx-auto" />}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Selección de Variables */}
+            <div className="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-lg mb-8">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-slate-700">Columnas Disponibles</h3>
-                <span className="text-sm text-slate-500">
-                  {extraVars.length} seleccionada{extraVars.length !== 1 ? 's' : ''}
-                </span>
+                <h3 className="font-bold text-slate-700">Columnas Disponibles (Después de Liquido Pagable)</h3>
+                <span className="text-sm text-slate-500">{extraVars.length} seleccionada{extraVars.length !== 1 ? 's' : ''}</span>
               </div>
               
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-96 overflow-y-auto pr-2">
-                {available.map(col => {
-                    const selected = extraVars.find(v => v.originalName === col);
-                    return (
-                        <button
-                            key={col} 
-                            onClick={() => toggle(col)} 
-                            className={`p-4 rounded-xl border-2 text-left flex items-center justify-between gap-2 transition-all ${
-                              selected 
-                                ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 border-indigo-600 text-white shadow-lg scale-105' 
-                                : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'
-                            }`}
-                        >
-                            <span className={`text-sm font-medium truncate ${selected ? 'text-white' : 'text-slate-700'}`} title={col}>
-                              {col}
-                            </span>
-                            {selected ? (
-                              <CheckCircle className="w-5 h-5 flex-shrink-0" />
-                            ) : (
-                              <Plus className="w-5 h-5 text-slate-400 flex-shrink-0" />
-                            )}
-                        </button>
-                    );
-                })}
-              </div>
+              {variants.length > 0 && incrementoVars.length > 0 && (
+                <div className="mb-6">
+                    <p className="text-sm font-bold text-emerald-700 mb-3">✓ Variables tipo INCREMENTO</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {incrementoVars.map(col => {
+                            const selected = extraVars.find(v => v.originalName === col);
+                            return (
+                                <button key={col} onClick={() => toggle(col)} className={`p-4 rounded-xl border-2 text-left flex items-center justify-between gap-2 transition-all ${selected ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 border-indigo-600 text-white shadow-lg scale-105' : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'}`}>
+                                    <span className={`text-sm font-medium truncate ${selected ? 'text-white' : 'text-slate-700'}`} title={getDisplayName(col)}>
+                                      {getDisplayName(col)}
+                                    </span>
+                                    {selected && <CheckCircle className="w-5 h-5 flex-shrink-0" />}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+              )}
+              
+              {variants.length === 0 && available.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {available.map(col => {
+                        const selected = extraVars.find(v => v.originalName === col);
+                        return (
+                            <button key={col} onClick={() => toggle(col)} className={`p-4 rounded-xl border-2 text-left flex items-center justify-between gap-2 transition-all ${selected ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 border-indigo-600 text-white shadow-lg scale-105' : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-indigo-50'}`}>
+                                <span className={`text-sm font-medium truncate ${selected ? 'text-white' : 'text-slate-700'}`} title={col}>{col}</span>
+                                {selected ? <CheckCircle className="w-5 h-5 flex-shrink-0" /> : <Plus className="w-5 h-5 text-slate-400 flex-shrink-0" />}
+                            </button>
+                        );
+                    })}
+                </div>
+              )}
 
               {available.length === 0 && (
                 <div className="text-center py-12 text-slate-400">
-                  <p>Todas las columnas han sido mapeadas</p>
+                  <p>No hay columnas disponibles después de "Liquido Pagable"</p>
                 </div>
               )}
             </div>
 
             <div className="flex justify-between items-center pt-6 border-t border-slate-200">
-                <button 
-                  onClick={onBack} 
-                  className="text-slate-600 hover:text-slate-800 font-medium px-6 py-3 rounded-xl hover:bg-slate-100 transition-all"
-                >
-                  ← Atrás
-                </button>
-                <button 
-                  onClick={onNext} 
-                  className="btn-primary px-8 py-3 text-base"
-                >
-                  Continuar <ArrowRight className="w-5 h-5 ml-2" />
+                <button onClick={onBack} className="text-slate-600 hover:text-slate-800 font-medium px-6 py-3 rounded-xl hover:bg-slate-100 transition-all">← Atrás</button>
+                <button onClick={onNext} disabled={validation && !validation.allValid} className={`px-8 py-3 rounded-xl font-bold text-base transition-all ${validation && validation.allValid ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg hover:shadow-xl' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
+                    Continuar <ArrowRight className="w-5 h-5 ml-2 inline" />
                 </button>
             </div>
         </div>
@@ -406,11 +487,7 @@ export const PreCalcFilters = ({ data, mapping, filters, setFilters, onNext, onB
                             {label}
                           </span>
                         </label>
-                        <select 
-                          value={filters[key] || 'Todas'} 
-                          onChange={(e) => change(key, e.target.value)}
-                          className="w-full p-3 border-2 border-slate-200 rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium"
-                        >
+                        <select value={filters[key] || 'Todas'} onChange={(e) => change(key, e.target.value)} className="w-full p-3 border-2 border-slate-200 rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all font-medium">
                             <option value="Todas">📋 Todas</option>
                             {opts[key+'s']?.map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
@@ -419,16 +496,8 @@ export const PreCalcFilters = ({ data, mapping, filters, setFilters, onNext, onB
             </div>
 
             <div className="flex justify-between items-center pt-8">
-                <button 
-                  onClick={onBack} 
-                  className="text-slate-600 hover:text-slate-800 font-medium px-6 py-3 rounded-xl hover:bg-slate-100 transition-all"
-                >
-                  ← Atrás
-                </button>
-                <button 
-                  onClick={onNext} 
-                  className="btn-primary px-8 py-3 text-base"
-                >
+                <button onClick={onBack} className="text-slate-600 hover:text-slate-800 font-medium px-6 py-3 rounded-xl hover:bg-slate-100 transition-all">← Atrás</button>
+                <button onClick={onNext} className="btn-primary px-8 py-3 text-base">
                   Ir a Parámetros <ArrowRight className="w-5 h-5 ml-2" />
                 </button>
             </div>
@@ -460,7 +529,6 @@ export const CalculationConfig = ({ config, setConfig, onCalculate, onBack }) =>
       </div>
 
       <div className="grid md:grid-cols-2 gap-8 mb-10">
-        {/* Cargas Patronales */}
         <div className="bg-gradient-to-br from-blue-50 to-white p-8 rounded-3xl border-2 border-blue-200 shadow-lg">
             <h3 className="font-bold text-xl flex items-center gap-3 mb-6 text-blue-900">
               <Building2 className="w-6 h-6 text-blue-600"/> 
@@ -490,7 +558,6 @@ export const CalculationConfig = ({ config, setConfig, onCalculate, onBack }) =>
             </ul>
         </div>
 
-        {/* Provisiones */}
         <div className="bg-gradient-to-br from-emerald-50 to-white p-8 rounded-3xl border-2 border-emerald-200 shadow-lg">
             <h3 className="font-bold text-xl flex items-center gap-3 mb-6 text-emerald-900">
               <CheckCircle className="w-6 h-6 text-emerald-600"/> 
@@ -498,29 +565,15 @@ export const CalculationConfig = ({ config, setConfig, onCalculate, onBack }) =>
             </h3>
             <div className="space-y-3">
                 {provisions.map(p => (
-                    <button
-                        key={p.key} 
-                        onClick={() => toggle(p.key)} 
-                        className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-                          config[p.key] 
-                            ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 border-emerald-600 text-white shadow-lg' 
-                            : 'bg-white border-slate-200 hover:border-emerald-300 hover:bg-emerald-50'
-                        }`}
-                    >
+                    <button key={p.key} onClick={() => toggle(p.key)} className={`w-full text-left p-4 rounded-xl border-2 transition-all ${config[p.key] ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 border-emerald-600 text-white shadow-lg' : 'bg-white border-slate-200 hover:border-emerald-300 hover:bg-emerald-50'}`}>
                         <div className="flex items-center justify-between mb-2">
-                          <span className={`font-bold ${config[p.key] ? 'text-white' : 'text-slate-800'}`}>
-                            {p.label}
-                          </span>
+                          <span className={`font-bold ${config[p.key] ? 'text-white' : 'text-slate-800'}`}>{p.label}</span>
                           <div className="flex items-center gap-2">
-                            <span className={`text-sm font-bold ${config[p.key] ? 'text-emerald-100' : 'text-emerald-600'}`}>
-                              {p.pct}
-                            </span>
+                            <span className={`text-sm font-bold ${config[p.key] ? 'text-emerald-100' : 'text-emerald-600'}`}>{p.pct}</span>
                             {config[p.key] && <Check className="w-5 h-5" />}
                           </div>
                         </div>
-                        <p className={`text-xs ${config[p.key] ? 'text-emerald-100' : 'text-slate-500'}`}>
-                          {p.desc}
-                        </p>
+                        <p className={`text-xs ${config[p.key] ? 'text-emerald-100' : 'text-slate-500'}`}>{p.desc}</p>
                     </button>
                 ))}
             </div>
@@ -528,18 +581,9 @@ export const CalculationConfig = ({ config, setConfig, onCalculate, onBack }) =>
       </div>
 
       <div className="flex justify-between items-center pt-6 border-t border-slate-200">
-        <button 
-          onClick={onBack} 
-          className="text-slate-600 hover:text-slate-800 font-medium px-6 py-3 rounded-xl hover:bg-slate-100 transition-all"
-        >
-          ← Atrás
-        </button>
-        <button 
-          onClick={onCalculate} 
-          className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-10 py-4 rounded-2xl font-bold text-lg shadow-2xl hover:shadow-3xl hover:-translate-y-1 transition-all flex items-center gap-3"
-        >
-          <Calculator className="w-6 h-6" /> 
-          Calcular Ahora
+        <button onClick={onBack} className="text-slate-600 hover:text-slate-800 font-medium px-6 py-3 rounded-xl hover:bg-slate-100 transition-all">← Atrás</button>
+        <button onClick={onCalculate} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-10 py-4 rounded-2xl font-bold text-lg shadow-2xl hover:shadow-3xl hover:-translate-y-1 transition-all flex items-center gap-3">
+          <Calculator className="w-6 h-6" /> Calcular Ahora
         </button>
       </div>
     </div>

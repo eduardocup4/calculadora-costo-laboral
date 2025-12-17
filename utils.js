@@ -3,23 +3,17 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 // ============================================================================
-// 1. CONSTANTES LEGALES BOLIVIA 2025
+// CONSTANTES LEGALES BOLIVIA 2025
 // ============================================================================
 export const CONSTANTS = {
-  SMN: 2500, // Salario Mínimo Nacional
-  
-  // Cargas Sociales (Patronal) - TOTAL: 17.21%
-  CNS: 0.10,                      // 10.00%
-  AFP_PRO_VIVIENDA: 0.02,         //  2.00%
-  AFP_RIESGO_PROFESIONAL: 0.0171, //  1.71%
-  AFP_SOLIDARIO_PATRONAL: 0.035,  //  3.50%
-  
-  // Provisiones (Pasivos)
+  SMN: 2500,
+  CNS: 0.10,
+  AFP_PRO_VIVIENDA: 0.02,
+  AFP_RIESGO_PROFESIONAL: 0.0171,
+  AFP_SOLIDARIO_PATRONAL: 0.035,
   AGUINALDO: 0.08333,
   INDEMNIZACION: 0.08333,
   PRIMA: 0.08333,
-  
-  // Escala Bono Antigüedad (DS 21060 Art 60) - Base 3 SMN
   ESCALA_ANTIGUEDAD: [
     { min: 0, max: 2, pct: 0.00 },
     { min: 2, max: 5, pct: 0.05 },
@@ -37,9 +31,6 @@ export const MONTHS = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ];
 
-// ============================================================================
-// 2. HELPERS
-// ============================================================================
 export const parseNumber = (val) => {
   if (typeof val === 'number') return val;
   if (!val) return 0;
@@ -60,18 +51,102 @@ export const formatCurrency = (val) => new Intl.NumberFormat('es-BO', { style: '
 export const formatPercent = (val) => `${(parseFloat(val)).toFixed(2)}%`;
 
 // ============================================================================
-// 3. LÓGICA DE NEGOCIO Y CÁLCULOS
+// PARSEO DE ARCHIVO DE VARIANTES
 // ============================================================================
+export const parseVariantsFile = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(worksheet);
+        
+        const variants = json.map(row => {
+          const keys = Object.keys(row);
+          return {
+            codigo: row[keys.find(k => k.match(/codigo|clave|key/i))] || row[keys[0]],
+            nombre: row[keys.find(k => k.match(/nombre|descripcion|desc/i))] || row[keys[1]],
+            tipo: normalizeText(row[keys.find(k => k.match(/tipo|type|categoria/i))] || row[keys[2]] || 'OTRO')
+          };
+        });
+        
+        resolve(variants);
+      } catch (err) { reject(err); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+};
 
-// A. Proyección de Antigüedad (Futuro)
+// ============================================================================
+// IDENTIFICAR COLUMNAS DESPUÉS DE "LIQUIDO PAGABLE"
+// ============================================================================
+export const getColumnsAfterLiquidoPagable = (headers) => {
+  const liquidoIndex = headers.findIndex(h => 
+    normalizeText(h).includes('liquido') && normalizeText(h).includes('pag')
+  );
+  
+  if (liquidoIndex === -1) {
+    console.warn('No se encontró columna "Liquido Pagable", mostrando todas');
+    return headers;
+  }
+  
+  return headers.slice(liquidoIndex + 1);
+};
+
+// ============================================================================
+// VALIDAR SUMA DE VARIABLES = TOTAL GANADO
+// ============================================================================
+export const validateVariablesSum = (data, mapping, selectedVars) => {
+  const sampleSize = Math.min(5, data.length);
+  const validation = [];
+  
+  for (let i = 0; i < sampleSize; i++) {
+    const row = data[i];
+    const haberBasico = parseNumber(row[mapping.haberBasico]) || 0;
+    const bonoAntiguedad = parseNumber(row[mapping.bonoAntiguedad]) || 0;
+    const bonoDominical = parseNumber(row[mapping.bonoDominical]) || 0;
+    const totalGanado = parseNumber(row[mapping.totalGanado]) || 0;
+    
+    let sumOtrosBonos = 0;
+    selectedVars.forEach(v => {
+      sumOtrosBonos += parseNumber(row[v.originalName]) || 0;
+    });
+    
+    const calculatedTotal = haberBasico + bonoAntiguedad + bonoDominical + sumOtrosBonos;
+    const diff = Math.abs(totalGanado - calculatedTotal);
+    const isValid = diff < 1;
+    
+    validation.push({
+      rowIndex: i,
+      nombre: row[mapping.nombre] || `Fila ${i + 1}`,
+      haberBasico,
+      bonoAntiguedad,
+      bonoDominical,
+      otrosBonos: sumOtrosBonos,
+      totalCalculado: calculatedTotal,
+      totalEsperado: totalGanado,
+      diferencia: diff,
+      isValid
+    });
+  }
+  
+  const allValid = validation.every(v => v.isValid);
+  return { validation, allValid, sampleSize };
+};
+
+// ============================================================================
+// PROYECCIÓN DE ANTIGÜEDAD
+// ============================================================================
 export const getSeniorityProjection = (fechaIngreso) => {
     if (!fechaIngreso) return null;
     const projections = {};
-    const periods = [0, 3, 6, 12, 24];
+    const periods = [0, 3, 6, 12, 24, 36];
     const today = new Date();
     
     periods.forEach(months => {
-        const futureDate = new Date(new Date().setMonth(today.getMonth() + months));
+        const futureDate = new Date(today.getFullYear(), today.getMonth() + months, today.getDate());
         const diffTime = Math.abs(futureDate - fechaIngreso);
         const years = diffTime / (1000 * 60 * 60 * 24 * 365.25);
         
@@ -82,7 +157,82 @@ export const getSeniorityProjection = (fechaIngreso) => {
     return projections;
 };
 
-// B. Análisis de Equidad (Mejorado)
+export const analyzeSeniorityProjection = (data, mapping) => {
+  const projections = {
+    byGroup: {},
+    byUnidadNegocio: {},
+    byCargo: {},
+    byPerson: []
+  };
+  
+  data.forEach(row => {
+    const nombre = row[mapping.nombre];
+    const fechaIngreso = formatDate(row[mapping.fechaIngreso]);
+    const grupo = row[mapping.area] || 'Sin Área';
+    const unidad = row[mapping.empresa] || 'Sin Unidad';
+    const cargo = row[mapping.cargo] || 'Sin Cargo';
+    
+    if (!fechaIngreso) return;
+    
+    const projection = getSeniorityProjection(fechaIngreso);
+    
+    projections.byPerson.push({
+      nombre,
+      cargo,
+      grupo,
+      unidad,
+      fechaIngreso,
+      actual: projection[0],
+      m3: projection[3],
+      m6: projection[6],
+      m12: projection[12],
+      m24: projection[24],
+      m36: projection[36],
+      incremento36m: projection[36] - projection[0]
+    });
+    
+    if (!projections.byGroup[grupo]) {
+      projections.byGroup[grupo] = { actual: 0, m3: 0, m6: 0, m12: 0, m24: 0, m36: 0, count: 0 };
+    }
+    projections.byGroup[grupo].actual += projection[0];
+    projections.byGroup[grupo].m3 += projection[3];
+    projections.byGroup[grupo].m6 += projection[6];
+    projections.byGroup[grupo].m12 += projection[12];
+    projections.byGroup[grupo].m24 += projection[24];
+    projections.byGroup[grupo].m36 += projection[36];
+    projections.byGroup[grupo].count++;
+    
+    if (!projections.byUnidadNegocio[unidad]) {
+      projections.byUnidadNegocio[unidad] = { actual: 0, m3: 0, m6: 0, m12: 0, m24: 0, m36: 0, count: 0 };
+    }
+    projections.byUnidadNegocio[unidad].actual += projection[0];
+    projections.byUnidadNegocio[unidad].m3 += projection[3];
+    projections.byUnidadNegocio[unidad].m6 += projection[6];
+    projections.byUnidadNegocio[unidad].m12 += projection[12];
+    projections.byUnidadNegocio[unidad].m24 += projection[24];
+    projections.byUnidadNegocio[unidad].m36 += projection[36];
+    projections.byUnidadNegocio[unidad].count++;
+    
+    if (!projections.byCargo[cargo]) {
+      projections.byCargo[cargo] = { actual: 0, m3: 0, m6: 0, m12: 0, m24: 0, m36: 0, count: 0 };
+    }
+    projections.byCargo[cargo].actual += projection[0];
+    projections.byCargo[cargo].m3 += projection[3];
+    projections.byCargo[cargo].m6 += projection[6];
+    projections.byCargo[cargo].m12 += projection[12];
+    projections.byCargo[cargo].m24 += projection[24];
+    projections.byCargo[cargo].m36 += projection[36];
+    projections.byCargo[cargo].count++;
+  });
+  
+  projections.byPerson.sort((a, b) => b.incremento36m - a.incremento36m);
+  
+  return projections;
+};
+
+// ============================================================================
+// ANÁLISIS DE EQUIDAD
+// ============================================================================
 export const analyzeEquity = (data) => {
     const byGender = { M: { sum: 0, count: 0, salaries: [] }, F: { sum: 0, count: 0, salaries: [] }, Other: { sum: 0, count: 0, salaries: [] } };
     const byRole = {};
@@ -94,7 +244,6 @@ export const analyzeEquity = (data) => {
     };
 
     data.forEach(emp => {
-        // Normalizar Género
         let g = 'Other';
         const rawG = normalizeText(emp.genero);
         if (rawG.startsWith('m') || rawG.startsWith('h')) g = 'M';
@@ -104,7 +253,6 @@ export const analyzeEquity = (data) => {
         byGender[g].count++;
         byGender[g].salaries.push(emp.totalGanado);
 
-        // Agrupar por Cargo
         if (!byRole[emp.cargo]) byRole[emp.cargo] = { sum: 0, count: 0, salaries: [], M: 0, F: 0 };
         byRole[emp.cargo].sum += emp.totalGanado;
         byRole[emp.cargo].count++;
@@ -112,7 +260,6 @@ export const analyzeEquity = (data) => {
         if(g === 'M') byRole[emp.cargo].M++;
         if(g === 'F') byRole[emp.cargo].F++;
 
-        // Agrupar por Antigüedad
         if(emp.fechaIngreso) {
             const years = (new Date() - emp.fechaIngreso) / (1000 * 60 * 60 * 24 * 365.25);
             let senKey = '10+';
@@ -131,11 +278,16 @@ export const analyzeEquity = (data) => {
     const avgF = byGender.F.count ? byGender.F.sum / byGender.F.count : 0;
     const gap = avgM > 0 ? ((avgM - avgF) / avgM) * 100 : 0;
 
-    // Calcular medianas
+    const calculateMedian = (arr) => {
+        if(arr.length === 0) return 0;
+        const sorted = [...arr].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    };
+
     const medianM = calculateMedian(byGender.M.salaries);
     const medianF = calculateMedian(byGender.F.salaries);
 
-    // Análisis por cargo con brecha
     const roleAnalysis = Object.entries(byRole).map(([cargo, data]) => {
         const avgSalary = data.count > 0 ? data.sum / data.count : 0;
         const genderGap = data.M > 0 && data.F > 0 ? ((data.M - data.F) / (data.M + data.F)) * 100 : 0;
@@ -145,10 +297,10 @@ export const analyzeEquity = (data) => {
     return { byGender, byRole, bySeniority, gap, avgM, avgF, medianM, medianF, roleAnalysis };
 };
 
-// C. Cálculo Principal (Soporta Filtros y Diccionario)
+// ============================================================================
+// CÁLCULO PRINCIPAL
+// ============================================================================
 export const calculateAll = (data, mapping, config, filters, extraVars = []) => {
-  
-  // 1. Filtrado PRE-CÁLCULO
   const filteredData = data.filter(row => {
     if (filters.empresa && filters.empresa !== 'Todas' && row[mapping.empresa] !== filters.empresa) return false;
     if (filters.regional && filters.regional !== 'Todas' && row[mapping.regional] !== filters.regional) return false;
@@ -164,16 +316,15 @@ export const calculateAll = (data, mapping, config, filters, extraVars = []) => 
   
   const details = filteredData.map((row, index) => {
     const haberBasico = parseNumber(row[mapping.haberBasico]);
+    const bonoDominical = parseNumber(row[mapping.bonoDominical]) || 0;
     const fechaIngreso = formatDate(row[mapping.fechaIngreso]);
     const fechaRetiro = formatDate(row[mapping.fechaRetiro]);
     
-    // Antigüedad
     let bonoAntiguedad = parseNumber(row[mapping.bonoAntiguedad]);
     if (bonoAntiguedad === 0 && fechaIngreso) {
         bonoAntiguedad = getSeniorityProjection(fechaIngreso)[0];
     }
 
-    // Otros Bonos (Diccionario)
     let otrosBonos = 0;
     const breakdown = {}; 
     extraVars.forEach(v => {
@@ -182,16 +333,14 @@ export const calculateAll = (data, mapping, config, filters, extraVars = []) => 
         breakdown[v.alias] = val; 
     });
 
-    const totalGanado = haberBasico + bonoAntiguedad + otrosBonos;
+    const totalGanado = haberBasico + bonoAntiguedad + bonoDominical + otrosBonos;
 
-    // Cargas Patronales (17.21%)
     const cns = totalGanado * CONSTANTS.CNS;
     const afpRiesgo = totalGanado * CONSTANTS.AFP_RIESGO_PROFESIONAL;
     const afpVivienda = totalGanado * CONSTANTS.AFP_PRO_VIVIENDA;
     const afpSolidario = totalGanado * CONSTANTS.AFP_SOLIDARIO_PATRONAL;
     const totalPatronal = cns + afpRiesgo + afpVivienda + afpSolidario;
 
-    // Provisiones
     let provisiones = 0;
     if (config.aguinaldo) provisiones += totalGanado * CONSTANTS.AGUINALDO;
     if (config.indemnizacion) provisiones += totalGanado * CONSTANTS.INDEMNIZACION;
@@ -223,6 +372,7 @@ export const calculateAll = (data, mapping, config, filters, extraVars = []) => 
         fechaRetiro,
         haberBasico,
         bonoAntiguedad,
+        bonoDominical,
         otrosBonos,
         breakdown,
         totalGanado,
@@ -236,7 +386,9 @@ export const calculateAll = (data, mapping, config, filters, extraVars = []) => 
   return { summary: totals, details };
 };
 
-// D. Auditoría Precierre (Mejorado con Alertas Inteligentes)
+// ============================================================================
+// AUDITORÍA PRECIERRE (CON VARIACIONES NO SALARIALES)
+// ============================================================================
 export const analyzePrecierre = (periodsData) => {
     if(periodsData.length < 2) return null;
     const sorted = [...periodsData].sort((a, b) => (a.year * 100 + a.month) - (b.year * 100 + b.month));
@@ -252,6 +404,7 @@ export const analyzePrecierre = (periodsData) => {
     const bajas = prev.filter(p => !currMap.has(getKey(p)));
     
     const variaciones = [];
+    const variacionesNoSalariales = [];
     const alerts = [];
 
     current.forEach(currEmp => {
@@ -260,22 +413,20 @@ export const analyzePrecierre = (periodsData) => {
             const diff = currEmp.totalGanado - prevEmp.totalGanado;
             const pct = prevEmp.totalGanado > 0 ? (diff / prevEmp.totalGanado) * 100 : 0;
             
-            // Detectar si es alta reciente (ingreso en periodo previo)
             const isRecentHire = prevEmp.fechaIngreso && 
                                  new Date(prevEmp.fechaIngreso).getMonth() === sorted[sorted.length-2].month - 1;
             
-            // Solo alertar si NO es alta reciente y la variación es significativa
             if(Math.abs(diff) > 100 && !isRecentHire) {
                 variaciones.push({
                     nombre: currEmp.nombre,
-                    concepto: 'Total Ganado',
+                    cargo: currEmp.cargo,
+                    variante: 'Total Ganado',
                     anterior: prevEmp.totalGanado,
                     actual: currEmp.totalGanado,
                     diff: diff,
                     pct: pct
                 });
 
-                // Generar alertas según umbral
                 if(Math.abs(pct) > 20) {
                     alerts.push({
                         type: 'Crítico',
@@ -295,14 +446,51 @@ export const analyzePrecierre = (periodsData) => {
                 }
             }
             
+            if(currEmp.breakdown && prevEmp.breakdown) {
+                Object.keys(currEmp.breakdown).forEach(key => {
+                    const currVal = currEmp.breakdown[key] || 0;
+                    const prevVal = prevEmp.breakdown[key] || 0;
+                    const diffComp = currVal - prevVal;
+                    
+                    if(Math.abs(diffComp) > 10) {
+                        const pctComp = prevVal > 0 ? (diffComp / prevVal) * 100 : 0;
+                        variaciones.push({
+                            nombre: currEmp.nombre,
+                            cargo: currEmp.cargo,
+                            variante: key,
+                            anterior: prevVal,
+                            actual: currVal,
+                            diff: diffComp,
+                            pct: pctComp
+                        });
+                    }
+                });
+            }
+            
             if(currEmp.cargo !== prevEmp.cargo) {
-                 variaciones.push({
+                 variacionesNoSalariales.push({
                     nombre: currEmp.nombre,
-                    concepto: 'Cambio de Cargo',
+                    tipo: 'Cambio de Cargo',
                     anterior: prevEmp.cargo,
-                    actual: currEmp.cargo,
-                    diff: 0, 
-                    pct: 0
+                    actual: currEmp.cargo
+                });
+            }
+            
+            if(currEmp.area !== prevEmp.area) {
+                 variacionesNoSalariales.push({
+                    nombre: currEmp.nombre,
+                    tipo: 'Cambio de Área',
+                    anterior: prevEmp.area,
+                    actual: currEmp.area
+                });
+            }
+            
+            if(currEmp.empresa !== prevEmp.empresa) {
+                 variacionesNoSalariales.push({
+                    nombre: currEmp.nombre,
+                    tipo: 'Cambio de Unidad de Negocio',
+                    anterior: prevEmp.empresa,
+                    actual: currEmp.empresa
                 });
             }
         }
@@ -315,14 +503,15 @@ export const analyzePrecierre = (periodsData) => {
         percentage: ((sorted[sorted.length-1].results.summary.costo - sorted[sorted.length-2].results.summary.costo) / sorted[sorted.length-2].results.summary.costo) * 100
     };
 
-    return { altas, bajas, variaciones, generalDiff, alerts };
+    return { altas, bajas, variaciones, variacionesNoSalariales, generalDiff, alerts };
 };
 
-// E. Análisis Predictivo (Factor Bradford + Tendencias)
+// ============================================================================
+// ANÁLISIS PREDICTIVO (CON TABLA ESTADÍSTICA)
+// ============================================================================
 export const analyzePredictive = (periodsData, absenceData) => {
-    // Tendencia de costos
     const trendData = periodsData.map(p => ({
-        monthName: `${MONTHS[p.month - 1].substring(0, 3)} ${p.year}`,
+        monthName: `${MONTHS[p.month - 1]} ${p.year}`,
         month: p.month,
         year: p.year,
         costoTotal: p.results.summary.costo,
@@ -330,18 +519,17 @@ export const analyzePredictive = (periodsData, absenceData) => {
         isProjection: false
     }));
 
-    // Proyección simple (próximos 3 meses)
     const lastCost = trendData[trendData.length - 1].costoTotal;
     const avgGrowth = trendData.length > 1 ? 
         (trendData[trendData.length - 1].costoTotal - trendData[0].costoTotal) / (trendData.length - 1) : 0;
 
     for(let i = 1; i <= 3; i++) {
         const lastPeriod = trendData[trendData.length - 1];
-        const nextMonth = lastPeriod.month + i > 12 ? (lastPeriod.month + i) % 12 : lastPeriod.month + i;
+        const nextMonth = lastPeriod.month + i > 12 ? ((lastPeriod.month + i - 1) % 12) + 1 : lastPeriod.month + i;
         const nextYear = lastPeriod.month + i > 12 ? lastPeriod.year + 1 : lastPeriod.year;
         
         trendData.push({
-            monthName: `${MONTHS[nextMonth - 1].substring(0, 3)} ${nextYear}`,
+            monthName: `${MONTHS[nextMonth - 1]} ${nextYear}`,
             month: nextMonth,
             year: nextYear,
             costoTotal: lastCost + (avgGrowth * i),
@@ -350,13 +538,53 @@ export const analyzePredictive = (periodsData, absenceData) => {
         });
     }
 
-    // Factor Bradford
     const bradford = calculateBradford(periodsData[periodsData.length - 1].results.details, absenceData);
+    
+    const statsTable = buildStatsTable(periodsData);
 
-    return { trendData, bradford };
+    return { trendData, bradford, statsTable };
 };
 
-// F. Cálculo Factor Bradford
+const buildStatsTable = (periodsData) => {
+    const groupStats = {};
+    
+    periodsData.forEach(period => {
+        const monthKey = `${MONTHS[period.month - 1]} ${period.year}`;
+        
+        period.results.details.forEach(emp => {
+            const group = emp.area || 'Sin Área';
+            
+            if (!groupStats[group]) {
+                groupStats[group] = { total: 0, periods: {} };
+            }
+            
+            if (!groupStats[group].periods[monthKey]) {
+                groupStats[group].periods[monthKey] = 0;
+            }
+            
+            groupStats[group].periods[monthKey] += emp.totalGanado;
+            groupStats[group].total += emp.totalGanado;
+        });
+    });
+    
+    const statsArray = Object.entries(groupStats).map(([group, data]) => {
+        const periods = data.periods;
+        const periodKeys = Object.keys(periods).sort();
+        const trend = periodKeys.length > 1 ? 
+            ((periods[periodKeys[periodKeys.length - 1]] - periods[periodKeys[0]]) / periods[periodKeys[0]]) * 100 : 0;
+        
+        return {
+            grupo: group,
+            total: data.total,
+            periods: periods,
+            periodKeys: periodKeys,
+            trend: trend
+        };
+    }).sort((a, b) => b.total - a.total);
+    
+    return statsArray;
+};
+
 const calculateBradford = (employees, absenceData) => {
     if(!absenceData || absenceData.length === 0) return [];
 
@@ -380,26 +608,17 @@ const calculateBradford = (employees, absenceData) => {
     return bradfordScores;
 };
 
-// Función auxiliar para mediana
-const calculateMedian = (arr) => {
-    if(arr.length === 0) return 0;
-    const sorted = [...arr].sort((a, b) => a - b);
-    const mid = Math.floor(sorted.length / 2);
-    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-};
-
-// G. Exportación PDF
+// ============================================================================
+// EXPORTACIÓN
+// ============================================================================
 export const exportReportPDF = (title, headers, rows) => {
     const doc = new jsPDF('l', 'mm', 'a4');
-    
     doc.setFontSize(14);
     doc.setTextColor(30, 64, 175);
     doc.text(title, 14, 15);
-    
     doc.setFontSize(8);
     doc.setTextColor(100);
     doc.text(`Generado: ${new Date().toLocaleDateString()} | Sistema de Costo Laboral Bolivia`, 14, 20);
-    
     doc.autoTable({
         startY: 25,
         head: [headers],
@@ -409,15 +628,12 @@ export const exportReportPDF = (title, headers, rows) => {
         styles: { fontSize: 7, cellPadding: 2 },
         alternateRowStyles: { fillColor: [248, 250, 252] }
     });
-    
     doc.save(`${title.replace(/\s+/g, '_')}.pdf`);
 };
 
-// H. Exportación Excel Mejorada
 export const exportToExcel = (data, filename) => {
     const wb = XLSX.utils.book_new();
 
-    // Hoja 1: Resumen
     if(data.summary) {
         const summaryData = [
             ['RESUMEN EJECUTIVO'],
@@ -438,7 +654,6 @@ export const exportToExcel = (data, filename) => {
         XLSX.utils.book_append_sheet(wb, ws1, 'Resumen');
     }
 
-    // Hoja 2: Detalle
     if(data.details) {
         const detailData = data.details.map(d => ({
             'CI': d.ci,
@@ -459,7 +674,6 @@ export const exportToExcel = (data, filename) => {
         XLSX.utils.book_append_sheet(wb, ws2, 'Detalle Personal');
     }
 
-    // Hoja 3: Análisis (si existe)
     if(data.analysis) {
         const ws3 = XLSX.utils.json_to_sheet(data.analysis);
         XLSX.utils.book_append_sheet(wb, ws3, 'Análisis');
@@ -468,7 +682,9 @@ export const exportToExcel = (data, filename) => {
     XLSX.writeFile(wb, `${filename}.xlsx`);
 };
 
-// I. Parsers
+// ============================================================================
+// PARSERS
+// ============================================================================
 export const parseExcel = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -523,6 +739,7 @@ export const autoDetectColumns = (headers) => {
     genero: ['genero', 'sexo'],
     haberBasico: ['haber', 'basico', 'sueldo'],
     bonoAntiguedad: ['antiguedad'],
+    bonoDominical: ['dominical', 'domingo'],
     fechaIngreso: ['ingreso', 'fechaing'],
     fechaRetiro: ['retiro', 'baja', 'salida'], 
     totalGanado: ['totalganado', 'ganado', 'total']
