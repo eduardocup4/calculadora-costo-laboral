@@ -886,3 +886,285 @@ export const extractUniqueValues = (data, column) => {
     const values = new Set(data.map(row => row[column]).filter(Boolean));
     return Array.from(values).sort();
 };
+
+// ============================================================================
+// MODO: COMPARATIVO INCREMENTO - Simulación de aumentos salariales
+// ============================================================================
+
+/**
+ * Parsea archivo de NIVELES (Estructura: CARGO | NIVEL)
+ */
+export const parseNivelesFile = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(worksheet);
+        
+        console.log(`📋 Archivo de Niveles: ${json.length} registros cargados`);
+        resolve(json);
+      } catch (err) {
+        console.error('❌ Error parseando archivo de niveles:', err);
+        reject(err);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+/**
+ * Mapea CARGOS → NIVELES usando normalización de texto
+ * Retorna: { mapping: Map, stats: {...}, sinMapearList: [...], nivelesDisponibles: [...] }
+ */
+export const mapearNiveles = (planillaData, nivelesData, cargoColumnPlanilla, cargoColumnNiveles, nivelColumnNiveles) => {
+  const mapping = new Map();
+  const stats = { mapeados: 0, sinMapear: 0 };
+  const sinMapearList = [];
+  
+  // Crear diccionario normalizado de NIVELES
+  const nivelesDict = new Map();
+  nivelesData.forEach(row => {
+    const cargo = row[cargoColumnNiveles];
+    const nivel = row[nivelColumnNiveles];
+    if (cargo && nivel) {
+      const cargoNorm = normalizeText(cargo);
+      nivelesDict.set(cargoNorm, { cargo: cargo, nivel: nivel });
+    }
+  });
+  
+  console.log(`📊 Diccionario de Niveles: ${nivelesDict.size} cargos únicos`);
+  
+  // Mapear empleados de la planilla
+  planillaData.forEach(row => {
+    const cargo = row[cargoColumnPlanilla];
+    if (!cargo) return;
+    
+    const cargoNorm = normalizeText(cargo);
+    
+    if (nivelesDict.has(cargoNorm)) {
+      const nivelInfo = nivelesDict.get(cargoNorm);
+      mapping.set(cargo, nivelInfo.nivel);
+      stats.mapeados++;
+    } else {
+      stats.sinMapear++;
+      if (!sinMapearList.includes(cargo)) {
+        sinMapearList.push(cargo);
+      }
+    }
+  });
+  
+  console.log(`✅ Mapeo completado: ${stats.mapeados} mapeados, ${stats.sinMapear} sin nivel`);
+  
+  return {
+    mapping,
+    stats,
+    sinMapearList: [...new Set(sinMapearList)], // Únicos
+    nivelesDisponibles: Array.from(new Set(Array.from(nivelesDict.values()).map(v => v.nivel))).sort()
+  };
+};
+
+/**
+ * Calcula la antigüedad usando el NUEVO SMN (recálculo universal)
+ */
+const calcularNuevaAntiguedad = (fechaIngreso, nuevoSMN) => {
+  if (!fechaIngreso) return 0;
+  
+  const years = (new Date() - fechaIngreso) / (1000 * 60 * 60 * 24 * 365.25);
+  
+  // Buscar escala correspondiente
+  const scale = CONSTANTS.ESCALA_ANTIGUEDAD.find(s => years >= s.min && years < s.max);
+  const pct = scale ? scale.pct : 0.50; // Máximo 50% si >25 años
+  
+  return (nuevoSMN * 3) * pct;
+};
+
+/**
+ * ALGORITMO DE CASCADA - SIMULACIÓN DE INCREMENTO
+ * 
+ * @param {Array} baselineData - Datos calculados con calculateAll (línea base)
+ * @param {Object} simulationParams - Parámetros de simulación
+ *   - nuevoSMN: Nuevo Salario Mínimo Nacional
+ *   - pctGobierno: % Incremento decretado por gobierno
+ *   - pctEmpresa: % Incremento adicional de la empresa
+ *   - nivelesSeleccionados: Array de niveles que reciben incremento porcentual
+ * @param {Map} nivelMapping - Mapeo de CARGO → NIVEL
+ * @param {Object} config - Configuración de provisiones
+ * 
+ * @returns {Object} - { baseline: [...], simulated: [...], comparison: {...} }
+ */
+export const calculateIncrementSimulation = (
+  baselineData, 
+  simulationParams, 
+  nivelMapping,
+  config
+) => {
+  console.log('🚀 Iniciando simulación de incremento:', simulationParams);
+  
+  const { nuevoSMN, pctGobierno, pctEmpresa, nivelesSeleccionados } = simulationParams;
+  const pctIncrementoTotal = (pctGobierno + pctEmpresa) / 100; // Convertir a decimal
+  
+  const simulated = [];
+  let niveladosPorSMN = 0;
+  let empleadosConIncremento = 0;
+  
+  baselineData.forEach(emp => {
+    // ===== PASO 1: LÍNEA BASE (Datos actuales) =====
+    const haberBasicoActual = emp.haberBasico;
+    const bonoAntiguedadActual = emp.bonoAntiguedad;
+    const otrosBonos = emp.otrosBonos; // Se mantienen FIJOS
+    const totalGanadoActual = emp.totalGanado;
+    
+    // ===== PASO 2: RECÁLCULO UNIVERSAL DE ANTIGÜEDAD =====
+    const bonoAntiguedadNuevo = calcularNuevaAntiguedad(emp.fechaIngreso, nuevoSMN);
+    
+    // ===== PASO 3: INCREMENTO PORCENTUAL SELECTIVO =====
+    const cargo = emp.cargo;
+    const nivel = nivelMapping.get(cargo) || 'Sin Nivel';
+    const recibeIncremento = nivelesSeleccionados.includes(nivel);
+    
+    let haberBasicoIntermedio = haberBasicoActual;
+    if (recibeIncremento) {
+      haberBasicoIntermedio = haberBasicoActual * (1 + pctIncrementoTotal);
+      empleadosConIncremento++;
+    }
+    
+    // ===== PASO 4: REGLA DEL PISO SMN =====
+    const haberBasicoNuevo = Math.max(haberBasicoIntermedio, nuevoSMN);
+    const tocoElPiso = haberBasicoNuevo === nuevoSMN && haberBasicoIntermedio < nuevoSMN;
+    if (tocoElPiso) niveladosPorSMN++;
+    
+    // ===== PASO 5: CONSOLIDACIÓN =====
+    const totalGanadoNuevo = haberBasicoNuevo + bonoAntiguedadNuevo + otrosBonos;
+    
+    // Recalcular cargas patronales (17.21%)
+    const cnsNuevo = totalGanadoNuevo * CONSTANTS.CNS;
+    const afpRiesgoNuevo = totalGanadoNuevo * CONSTANTS.AFP_RIESGO_PROFESIONAL;
+    const afpViviendaNuevo = totalGanadoNuevo * CONSTANTS.AFP_PRO_VIVIENDA;
+    const afpSolidarioNuevo = totalGanadoNuevo * CONSTANTS.AFP_SOLIDARIO_PATRONAL;
+    const totalPatronalNuevo = cnsNuevo + afpRiesgoNuevo + afpViviendaNuevo + afpSolidarioNuevo;
+    
+    // Recalcular provisiones (8.33% cada una)
+    let provisionesNuevo = 0;
+    if (config.aguinaldo) provisionesNuevo += totalGanadoNuevo * CONSTANTS.AGUINALDO;
+    if (config.indemnizacion) provisionesNuevo += totalGanadoNuevo * CONSTANTS.INDEMNIZACION;
+    if (config.primaUtilidades) provisionesNuevo += totalGanadoNuevo * CONSTANTS.PRIMA;
+    if (config.segundoAguinaldo) provisionesNuevo += totalGanadoNuevo * CONSTANTS.PRIMA;
+    
+    const costoTotalNuevo = totalGanadoNuevo + totalPatronalNuevo + provisionesNuevo;
+    
+    // ===== CALCULAR DELTAS =====
+    const deltaHaber = haberBasicoNuevo - haberBasicoActual;
+    const deltaAntiguedad = bonoAntiguedadNuevo - bonoAntiguedadActual;
+    const deltaTotalGanado = totalGanadoNuevo - totalGanadoActual;
+    const deltaCostoTotal = costoTotalNuevo - emp.costoTotalMensual;
+    const pctVariacionGanado = totalGanadoActual > 0 ? (deltaTotalGanado / totalGanadoActual) * 100 : 0;
+    const pctVariacionCosto = emp.costoTotalMensual > 0 ? (deltaCostoTotal / emp.costoTotalMensual) * 100 : 0;
+    
+    simulated.push({
+      // Identificación
+      id: emp.id,
+      ci: emp.ci,
+      nombre: emp.nombre,
+      cargo: emp.cargo,
+      area: emp.area,
+      regional: emp.regional,
+      empresa: emp.empresa,
+      nivel: nivel,
+      
+      // Línea Base (Actual)
+      haberBasicoActual,
+      bonoAntiguedadActual,
+      otrosBonos,
+      totalGanadoActual,
+      costoTotalActual: emp.costoTotalMensual,
+      provisionesActual: emp.provisiones,
+      cargasPatronalesActual: emp.costoTotalMensual - emp.totalGanado - emp.provisiones,
+      
+      // Simulación (Nuevo)
+      haberBasicoNuevo,
+      bonoAntiguedadNuevo,
+      totalGanadoNuevo,
+      cargasPatronalesNuevo: totalPatronalNuevo,
+      provisionesNuevo,
+      costoTotalNuevo,
+      
+      // Deltas
+      deltaHaber,
+      deltaAntiguedad,
+      deltaTotalGanado,
+      deltaCostoTotal,
+      pctVariacionGanado,
+      pctVariacionCosto,
+      
+      // Flags
+      recibeIncremento,
+      tocoElPiso,
+      fechaIngreso: emp.fechaIngreso
+    });
+  });
+  
+  // ===== RESUMEN COMPARATIVO =====
+  const totalActual = baselineData.reduce((sum, e) => sum + e.costoTotalMensual, 0);
+  const totalNuevo = simulated.reduce((sum, e) => sum + e.costoTotalNuevo, 0);
+  const impactoTotal = totalNuevo - totalActual;
+  const pctImpacto = totalActual > 0 ? (impactoTotal / totalActual) * 100 : 0;
+  
+  const totalGanadoActualSum = baselineData.reduce((sum, e) => sum + e.totalGanado, 0);
+  const totalGanadoNuevoSum = simulated.reduce((sum, e) => sum + e.totalGanadoNuevo, 0);
+  
+  const totalProvisionesActual = baselineData.reduce((sum, e) => sum + e.provisiones, 0);
+  const totalProvisionesNuevo = simulated.reduce((sum, e) => sum + e.provisionesNuevo, 0);
+  
+  const totalPatronalActual = baselineData.reduce((sum, e) => sum + (e.costoTotalMensual - e.totalGanado - e.provisiones), 0);
+  const totalPatronalNuevo = simulated.reduce((sum, e) => sum + e.cargasPatronalesNuevo, 0);
+  
+  const comparison = {
+    totalEmpleados: baselineData.length,
+    empleadosConIncremento,
+    niveladosPorSMN,
+    
+    costoActual: totalActual,
+    costoNuevo: totalNuevo,
+    impactoTotal,
+    pctImpacto,
+    
+    ganadoActual: totalGanadoActualSum,
+    ganadoNuevo: totalGanadoNuevoSum,
+    deltaGanado: totalGanadoNuevoSum - totalGanadoActualSum,
+    
+    patronalActual: totalPatronalActual,
+    patronalNuevo: totalPatronalNuevo,
+    deltaPatronal: totalPatronalNuevo - totalPatronalActual,
+    
+    provisionesActual: totalProvisionesActual,
+    provisionesNuevo: totalProvisionesNuevo,
+    deltaProvisiones: totalProvisionesNuevo - totalProvisionesActual,
+    
+    params: simulationParams,
+    nivelesAplicados: nivelesSeleccionados
+  };
+  
+  console.log('✅ Simulación completada:', {
+    impacto: `${formatCurrency(impactoTotal)} (${pctImpacto.toFixed(2)}%)`,
+    niveladosPorSMN,
+    conIncremento: empleadosConIncremento
+  });
+  
+  return {
+    baseline: baselineData,
+    simulated,
+    comparison
+  };
+};
+
+/**
+ * Obtener niveles únicos de un mapeo
+ */
+export const getNivelesUnicos = (nivelMapping) => {
+  const niveles = new Set();
+  nivelMapping.forEach(nivel => niveles.add(nivel));
+  return Array.from(niveles).sort();
+};

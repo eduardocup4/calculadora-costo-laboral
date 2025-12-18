@@ -515,6 +515,497 @@ export const PreCalcFilters = ({ data, mapping, filters, setFilters, onNext, onB
 };
 
 // ============================================================================
+// 1.5. CARGA Y MAPEO DE ARCHIVO DE NIVELES (MODO INCREMENTO)
+// ============================================================================
+export const NivelesUpload = ({ fileData, onNivelesUpload, onConfirm, onBack, isLoading }) => {
+  const [nivelesData, setNivelesData] = useState(null);
+  const [nivelMapping, setNivelMapping] = useState(null);
+  const [cargoColumn, setCargoColumn] = useState('');
+  const [nivelColumn, setNivelColumn] = useState('');
+  const [dragActive, setDragActive] = useState(false);
+
+  const handleDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(e.type === "dragenter" || e.type === "dragover");
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFileUpload(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleChange = (e) => {
+    if (e.target.files[0]) {
+      handleFileUpload(e.target.files[0]);
+    }
+  };
+
+  const handleFileUpload = async (file) => {
+    try {
+      const parsedData = await parseExcel(file);
+      setNivelesData(parsedData.data);
+      
+      // Auto-detectar columnas
+      const headers = parsedData.headers;
+      const cargoGuess = headers.find(h => 
+        normalizeText(h).includes('cargo') || 
+        normalizeText(h).includes('puesto') ||
+        normalizeText(h).includes('ocup')
+      );
+      const nivelGuess = headers.find(h => 
+        normalizeText(h).includes('nivel') || 
+        normalizeText(h).includes('categoria') ||
+        normalizeText(h).includes('grado')
+      );
+      
+      if (cargoGuess) setCargoColumn(cargoGuess);
+      if (nivelGuess) setNivelColumn(nivelGuess);
+    } catch (err) {
+      alert('Error al cargar archivo: ' + err.message);
+      console.error(err);
+    }
+  };
+
+  const handleProcesarMapeo = async () => {
+    if (!nivelesData || !cargoColumn || !nivelColumn) {
+      alert('Por favor completa el mapeo de columnas');
+      return;
+    }
+
+    try {
+      // Necesitamos importar la función de utils
+      const { mapearNiveles } = await import('./utils.js');
+      const cargoColumnPlanilla = fileData.mapping.cargo;
+      
+      const resultado = mapearNiveles(
+        fileData.data,
+        nivelesData,
+        cargoColumnPlanilla,
+        cargoColumn,
+        nivelColumn
+      );
+
+      setNivelMapping(resultado);
+    } catch (err) {
+      alert('Error al mapear niveles: ' + err.message);
+      console.error(err);
+    }
+  };
+
+  const handleContinuar = () => {
+    if (!nivelMapping) {
+      alert('Primero debes procesar el mapeo');
+      return;
+    }
+    onNivelesUpload(nivelMapping);
+    onConfirm();
+  };
+
+  const nivelesHeaders = nivelesData && nivelesData.length > 0 ? Object.keys(nivelesData[0] || {}) : [];
+
+  return (
+    <div className="max-w-4xl mx-auto animate-fade-in space-y-8">
+      <div className="text-center mb-8">
+        <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white shadow-xl">
+          <Building2 className="w-11 h-11" />
+        </div>
+        <h2 className="text-3xl font-bold text-slate-800 mb-3">Archivo de Niveles</h2>
+        <p className="text-slate-500 text-lg">Sube un archivo Excel con las columnas: CARGO y NIVEL</p>
+      </div>
+
+      {/* Upload Zone */}
+      {!nivelesData && (
+        <div 
+          onDragEnter={handleDrag}
+          onDragOver={handleDrag}
+          onDragLeave={handleDrag}
+          onDrop={handleDrop}
+          className={`relative border-3 border-dashed rounded-3xl p-12 text-center transition-all duration-300 ${
+            dragActive ? 'border-purple-500 bg-purple-50 scale-105' : 'border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-400'
+          }`}
+        >
+          <input 
+            type="file" 
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+            onChange={handleChange} 
+            accept=".xlsx, .xls, .csv" 
+          />
+          {isLoading ? (
+            <div className="py-4">
+              <RefreshCw className="w-12 h-12 text-purple-500 animate-spin mx-auto mb-4" />
+              <p className="text-slate-600 font-medium">Procesando archivo...</p>
+            </div>
+          ) : (
+            <div className="py-4">
+              <Upload className="w-14 h-14 text-slate-400 mx-auto mb-6" />
+              <p className="font-bold text-xl text-slate-700 mb-2">Arrastra tu archivo o haz clic</p>
+              <p className="text-sm text-slate-500">Formatos: .xlsx, .xls, .csv</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Mapeo de Columnas */}
+      {nivelesData && (
+        <div className="bg-white p-8 rounded-3xl border-2 border-slate-200 shadow-lg space-y-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="font-bold text-xl text-slate-800">Archivo Cargado</h3>
+              <p className="text-sm text-slate-500">{nivelesData.length} registros encontrados</p>
+            </div>
+            <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-4 py-2 rounded-xl">
+              <CheckCircle className="w-5 h-5" />
+              <span className="font-bold">Cargado</span>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <label className="block mb-2">
+                <span className="text-sm font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                  <span>💼</span> Columna de CARGO
+                </span>
+                <span className="text-xs text-slate-500">Debe coincidir con los cargos de la planilla</span>
+              </label>
+              <select 
+                value={cargoColumn} 
+                onChange={(e) => setCargoColumn(e.target.value)}
+                className="w-full p-3 border-2 border-slate-200 rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium"
+              >
+                <option value="">Selecciona...</option>
+                {nivelesHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block mb-2">
+                <span className="text-sm font-bold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                  <span>📊</span> Columna de NIVEL
+                </span>
+                <span className="text-xs text-slate-500">Nivel jerárquico o categoría del cargo</span>
+              </label>
+              <select 
+                value={nivelColumn} 
+                onChange={(e) => setNivelColumn(e.target.value)}
+                className="w-full p-3 border-2 border-slate-200 rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium"
+              >
+                <option value="">Selecciona...</option>
+                {nivelesHeaders.map(h => <option key={h} value={h}>{h}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {cargoColumn && nivelColumn && !nivelMapping && (
+            <button 
+              onClick={handleProcesarMapeo}
+              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all flex items-center justify-center gap-3"
+            >
+              <RefreshCw className="w-6 h-6" />
+              Procesar Mapeo
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Resultado del Mapeo */}
+      {nivelMapping && (
+        <div className="bg-gradient-to-br from-emerald-50 to-white p-8 rounded-3xl border-2 border-emerald-200 shadow-lg">
+          <div className="flex items-center gap-3 mb-6">
+            <CheckCircle className="w-8 h-8 text-emerald-600" />
+            <h3 className="font-bold text-xl text-emerald-900">Mapeo Completado</h3>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6 mb-6">
+            <div className="bg-white p-4 rounded-xl border border-emerald-200 text-center">
+              <p className="text-xs text-emerald-600 font-bold mb-1">Empleados Mapeados</p>
+              <p className="text-3xl font-bold text-emerald-900">{nivelMapping.stats.mapeados}</p>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-amber-200 text-center">
+              <p className="text-xs text-amber-600 font-bold mb-1">Sin Nivel Asignado</p>
+              <p className="text-3xl font-bold text-amber-900">{nivelMapping.stats.sinMapear}</p>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-purple-200 text-center">
+              <p className="text-xs text-purple-600 font-bold mb-1">Niveles Únicos</p>
+              <p className="text-3xl font-bold text-purple-900">{nivelMapping.nivelesDisponibles.length}</p>
+            </div>
+          </div>
+
+          {nivelMapping.sinMapearList.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 text-amber-800 font-bold mb-2">
+                <AlertTriangle className="w-5 h-5" />
+                Cargos sin nivel asignado ({nivelMapping.sinMapearList.length}):
+              </div>
+              <div className="text-sm text-amber-700 space-y-1 max-h-40 overflow-y-auto">
+                {nivelMapping.sinMapearList.map((cargo, i) => (
+                  <div key={i}>• {cargo}</div>
+                ))}
+              </div>
+              <p className="text-xs text-amber-600 mt-3">
+                Estos empleados NO recibirán incremento porcentual (solo antigüedad y regla SMN)
+              </p>
+            </div>
+          )}
+
+          <div className="mt-6 bg-purple-50 border border-purple-200 rounded-xl p-4">
+            <p className="text-sm text-purple-700 font-bold mb-2">Niveles Disponibles:</p>
+            <div className="flex flex-wrap gap-2">
+              {nivelMapping.nivelesDisponibles.map((nivel, i) => (
+                <span key={i} className="px-3 py-1 bg-purple-100 text-purple-800 rounded-lg text-xs font-bold">
+                  {nivel}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Navegación */}
+      <div className="flex justify-between items-center pt-6">
+        <button 
+          onClick={onBack} 
+          className="text-slate-600 hover:text-slate-800 font-medium px-6 py-3 rounded-xl hover:bg-slate-100 transition-all"
+        >
+          ← Atrás
+        </button>
+        {nivelMapping && (
+          <button 
+            onClick={handleContinuar}
+            className="btn-primary px-8 py-3 text-base"
+          >
+            Continuar <ArrowRight className="w-5 h-5 ml-2" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// 6. CONFIGURACIÓN DE INCREMENTO (MODO INCREMENTO)
+// ============================================================================
+export const ConfiguracionIncremento = ({ nivelesDisponibles, config, setConfig, onCalculate, onBack }) => {
+  const [nuevoSMN, setNuevoSMN] = useState(2630); // SMN 2025 actual
+  const [pctGobierno, setPctGobierno] = useState(3);
+  const [pctEmpresa, setPctEmpresa] = useState(2);
+  const [nivelesSeleccionados, setNivelesSeleccionados] = useState([]);
+
+  const toggleNivel = (nivel) => {
+    setNivelesSeleccionados(prev => 
+      prev.includes(nivel) 
+        ? prev.filter(n => n !== nivel)
+        : [...prev, nivel]
+    );
+  };
+
+  const seleccionarTodos = () => {
+    setNivelesSeleccionados(nivelesDisponibles);
+  };
+
+  const limpiarTodos = () => {
+    setNivelesSeleccionados([]);
+  };
+
+  const handleCalcular = () => {
+    if (nivelesSeleccionados.length === 0) {
+      if (!window.confirm('No has seleccionado ningún nivel. ¿Deseas continuar? Solo se aplicará el recálculo de antigüedad y la regla del SMN.')) {
+        return;
+      }
+    }
+
+    const params = {
+      nuevoSMN,
+      pctGobierno,
+      pctEmpresa,
+      nivelesSeleccionados
+    };
+
+    onCalculate(params);
+  };
+
+  const pctTotal = pctGobierno + pctEmpresa;
+
+  return (
+    <div className="max-w-6xl mx-auto animate-fade-in space-y-8">
+      <div className="text-center mb-8">
+        <div className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white shadow-xl">
+          <TrendingUp className="w-11 h-11" />
+        </div>
+        <h2 className="text-3xl font-bold text-slate-800 mb-3">Configuración de Incremento 2026</h2>
+        <p className="text-slate-500 text-lg">Define los parámetros de la simulación salarial</p>
+      </div>
+
+      {/* Parámetros Generales */}
+      <div className="bg-white p-8 rounded-3xl border-2 border-slate-200 shadow-lg space-y-6">
+        <h3 className="font-bold text-xl text-slate-800 mb-4">Parámetros Generales</h3>
+        
+        <div className="grid md:grid-cols-3 gap-6">
+          <div>
+            <label className="block mb-2">
+              <span className="text-sm font-bold text-slate-700 uppercase tracking-wide">💰 Nuevo SMN (BOB)</span>
+              <span className="block text-xs text-slate-500 mt-1">Salario Mínimo Nacional 2026</span>
+            </label>
+            <input
+              type="number"
+              value={nuevoSMN}
+              onChange={(e) => setNuevoSMN(parseFloat(e.target.value) || 0)}
+              className="w-full p-3 border-2 border-slate-200 rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-bold text-lg"
+              step="10"
+            />
+          </div>
+
+          <div>
+            <label className="block mb-2">
+              <span className="text-sm font-bold text-slate-700 uppercase tracking-wide">🏛️ % Incremento Gobierno</span>
+              <span className="block text-xs text-slate-500 mt-1">Porcentaje decretado por el gobierno</span>
+            </label>
+            <input
+              type="number"
+              value={pctGobierno}
+              onChange={(e) => setPctGobierno(parseFloat(e.target.value) || 0)}
+              className="w-full p-3 border-2 border-slate-200 rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-bold text-lg"
+              step="0.5"
+              min="0"
+              max="100"
+            />
+          </div>
+
+          <div>
+            <label className="block mb-2">
+              <span className="text-sm font-bold text-slate-700 uppercase tracking-wide">🏢 % Incremento Empresa</span>
+              <span className="block text-xs text-slate-500 mt-1">Porcentaje adicional de la empresa</span>
+            </label>
+            <input
+              type="number"
+              value={pctEmpresa}
+              onChange={(e) => setPctEmpresa(parseFloat(e.target.value) || 0)}
+              className="w-full p-3 border-2 border-slate-200 rounded-xl bg-slate-50 outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-bold text-lg"
+              step="0.5"
+              min="0"
+              max="100"
+            />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-xl p-6">
+          <div className="flex items-center justify-between">
+            <span className="text-lg font-bold text-purple-900">Incremento Total Combinado:</span>
+            <span className="text-4xl font-extrabold text-purple-700">{pctTotal.toFixed(2)}%</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Selector de Niveles */}
+      <div className="bg-white p-8 rounded-3xl border-2 border-slate-200 shadow-lg space-y-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="font-bold text-xl text-slate-800">Selección de Niveles</h3>
+            <p className="text-sm text-slate-500 mt-1">Marca los niveles que recibirán el incremento porcentual</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={seleccionarTodos}
+              className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-all text-sm font-bold"
+            >
+              Todos
+            </button>
+            <button
+              onClick={limpiarTodos}
+              className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-all text-sm font-bold"
+            >
+              Ninguno
+            </button>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-4">
+          {nivelesDisponibles.map((nivel, i) => {
+            const isSelected = nivelesSeleccionados.includes(nivel);
+            return (
+              <button
+                key={i}
+                onClick={() => toggleNivel(nivel)}
+                className={`p-4 rounded-xl border-2 transition-all text-left ${
+                  isSelected
+                    ? 'bg-gradient-to-r from-purple-500 to-indigo-600 border-purple-600 text-white shadow-lg'
+                    : 'bg-white border-slate-200 hover:border-purple-300 hover:bg-purple-50'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`font-bold ${isSelected ? 'text-white' : 'text-slate-800'}`}>{nivel}</span>
+                  {isSelected && <Check className="w-5 h-5" />}
+                </div>
+                <p className={`text-xs ${isSelected ? 'text-purple-100' : 'text-slate-500'}`}>
+                  {isSelected ? `Recibirá +${pctTotal.toFixed(1)}%` : 'Sin incremento porcentual'}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+
+        {nivelesSeleccionados.length > 0 && (
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+            <p className="text-sm text-purple-700 font-bold mb-2">
+              {nivelesSeleccionados.length} nivel(es) seleccionado(s):
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {nivelesSeleccionados.map((n, i) => (
+                <span key={i} className="px-3 py-1 bg-purple-100 text-purple-800 rounded-lg text-xs font-bold">
+                  {n}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Provisiones (Heredadas del config global) */}
+      <div className="bg-gradient-to-br from-emerald-50 to-white p-8 rounded-3xl border-2 border-emerald-200 shadow-lg">
+        <h3 className="font-bold text-xl text-emerald-900 mb-4 flex items-center gap-2">
+          <CheckCircle className="w-6 h-6 text-emerald-600" />
+          Provisiones Aplicadas
+        </h3>
+        <div className="grid md:grid-cols-2 gap-3 text-sm">
+          {[
+            { key: 'aguinaldo', label: 'Aguinaldo' },
+            { key: 'indemnizacion', label: 'Indemnización' },
+            { key: 'primaUtilidades', label: 'Prima de Utilidades' },
+            { key: 'segundoAguinaldo', label: 'Segundo Aguinaldo' }
+          ].map(p => (
+            <div key={p.key} className={`flex items-center gap-2 p-3 rounded-xl ${config[p.key] ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'}`}>
+              {config[p.key] ? <Check className="w-4 h-4" /> : <X className="w-4 h-4" />}
+              <span className="font-bold">{p.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Navegación */}
+      <div className="flex justify-between items-center pt-6 border-t border-slate-200">
+        <button 
+          onClick={onBack} 
+          className="text-slate-600 hover:text-slate-800 font-medium px-6 py-3 rounded-xl hover:bg-slate-100 transition-all"
+        >
+          ← Atrás
+        </button>
+        <button 
+          onClick={handleCalcular}
+          className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-10 py-4 rounded-2xl font-bold text-lg shadow-2xl hover:shadow-3xl hover:-translate-y-1 transition-all flex items-center gap-3"
+        >
+          <Calculator className="w-6 h-6" />
+          Ejecutar Simulación
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
 // 5. CONFIGURACIÓN DE CÁLCULO
 // ============================================================================
 export const CalculationConfig = ({ config, setConfig, onCalculate, onBack }) => {
