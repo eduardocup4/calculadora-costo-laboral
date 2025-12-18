@@ -8,7 +8,7 @@ import {
 import { 
   extractUniqueValues, formatPercent, CONSTANTS, formatCurrency,
   parseVariantsFile, getColumnsAfterLiquidoPagable, validateVariablesSum, 
-  parseNumber, normalizeText
+  parseNumber, normalizeText, parseExcel, mapearNiveles
 } from './utils';
 
 // ============================================================================
@@ -28,13 +28,13 @@ export const FileUpload = ({ mode, onFileUpload, onMultiUpload, onAbsenceUpload,
     e.stopPropagation(); 
     setDragActive(false); 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      mode === 'single' || mode === 'equidad' ? onFileUpload(e.dataTransfer.files[0]) : onMultiUpload(e.dataTransfer.files);
+      mode === 'single' || mode === 'equidad' || mode === 'incremento' ? onFileUpload(e.dataTransfer.files[0]) : onMultiUpload(e.dataTransfer.files);
     }
   };
   
   const handleChange = (e) => { 
     if (e.target.files[0]) {
-      mode === 'single' || mode === 'equidad' ? onFileUpload(e.target.files[0]) : onMultiUpload(e.target.files);
+      mode === 'single' || mode === 'equidad' || mode === 'incremento' ? onFileUpload(e.target.files[0]) : onMultiUpload(e.target.files);
     }
   };
 
@@ -45,6 +45,7 @@ export const FileUpload = ({ mode, onFileUpload, onMultiUpload, onAbsenceUpload,
   const getModeConfig = () => {
     const configs = {
       single: { icon: Calculator, color: 'blue', title: 'Carga Planilla Mensual', desc: 'Sube tu archivo Excel (.xlsx) o CSV con la planilla del mes.' },
+      incremento: { icon: TrendingUp, color: 'purple', title: 'Carga Planilla Base', desc: 'Sube tu planilla actual para simular incrementos 2026.' },
       equidad: { icon: Scale, color: 'amber', title: 'Análisis de Equidad', desc: 'Sube tu planilla para analizar brechas salariales de género.' },
       predictive: { icon: TrendingUp, color: 'purple', title: 'Carga Múltiples Planillas + Ausentismo', desc: 'Sube planillas de varios meses y archivo de ausentismo.' },
       precierre: { icon: GitCompare, color: 'emerald', title: 'Carga Múltiples Planillas', desc: 'Sube planillas de 2+ meses para comparar cambios.' }
@@ -577,9 +578,13 @@ export const NivelesUpload = ({ fileData, onNivelesUpload, onConfirm, onBack, is
       return;
     }
 
+    // Validar que fileData tenga el mapping correcto
+    if (!fileData || !fileData.mapping || !fileData.mapping.cargo) {
+      alert('Error: No se encontró la columna de CARGO en la planilla principal. Por favor vuelve al paso de mapeo.');
+      return;
+    }
+
     try {
-      // Necesitamos importar la función de utils
-      const { mapearNiveles } = await import('./utils.js');
       const cargoColumnPlanilla = fileData.mapping.cargo;
       
       const resultado = mapearNiveles(
@@ -794,6 +799,29 @@ export const ConfiguracionIncremento = ({ nivelesDisponibles, config, setConfig,
   const [pctGobierno, setPctGobierno] = useState(3);
   const [pctEmpresa, setPctEmpresa] = useState(2);
   const [nivelesSeleccionados, setNivelesSeleccionados] = useState([]);
+
+  // Validar que existan niveles disponibles
+  if (!nivelesDisponibles || nivelesDisponibles.length === 0) {
+    return (
+      <div className="max-w-4xl mx-auto animate-fade-in">
+        <div className="text-center py-20">
+          <AlertTriangle className="w-20 h-20 text-red-500 mx-auto mb-6" />
+          <h3 className="text-3xl font-bold mb-4 text-slate-800">Error: No hay niveles disponibles</h3>
+          <p className="text-slate-500 mb-8 max-w-lg mx-auto">
+            No se pudieron cargar los niveles del archivo. Esto puede ocurrir si el archivo de niveles está vacío 
+            o no se pudo mapear ningún cargo correctamente.
+          </p>
+          <p className="text-sm text-slate-600 mb-8">Por favor verifica que el archivo de niveles tenga datos y que coincidan con los cargos de la planilla.</p>
+          <button 
+            onClick={onBack}
+            className="px-8 py-3 bg-slate-600 text-white rounded-xl hover:bg-slate-700 transition-all font-bold"
+          >
+            ← Volver al Paso Anterior
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const toggleNivel = (nivel) => {
     setNivelesSeleccionados(prev => 

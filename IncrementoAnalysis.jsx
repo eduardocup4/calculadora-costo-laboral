@@ -8,7 +8,36 @@ import { formatCurrency, formatPercent, exportReportPDF, exportToExcel } from '.
 import * as XLSX from 'xlsx';
 
 const IncrementoAnalysis = ({ analysis, onNewAnalysis }) => {
+  // Validación de datos
+  if (!analysis || !analysis.simulated || !analysis.comparison) {
+    return (
+      <div className="text-center py-20">
+        <AlertTriangle className="w-20 h-20 text-red-500 mx-auto mb-6" />
+        <h3 className="text-3xl font-bold mb-4 text-slate-800">Error: Datos de simulación inválidos</h3>
+        <p className="text-slate-500 mb-8">No se pudieron cargar los resultados de la simulación.</p>
+        <button onClick={onNewAnalysis} className="btn-primary">
+          Nueva Simulación
+        </button>
+      </div>
+    );
+  }
+
   const { baseline, simulated, comparison } = analysis;
+  
+  // Validación adicional
+  if (!simulated || simulated.length === 0) {
+    return (
+      <div className="text-center py-20">
+        <AlertTriangle className="w-20 h-20 text-amber-500 mx-auto mb-6" />
+        <h3 className="text-3xl font-bold mb-4 text-slate-800">Sin datos para mostrar</h3>
+        <p className="text-slate-500 mb-8">La simulación no generó resultados.</p>
+        <button onClick={onNewAnalysis} className="btn-primary">
+          Nueva Simulación
+        </button>
+      </div>
+    );
+  }
+
   const [expandedRow, setExpandedRow] = useState(null);
   const [filtroNivel, setFiltroNivel] = useState('Todos');
   const [filtroImpacto, setFiltroImpacto] = useState('Todos'); // Todos, Con Incremento, Nivelados por SMN
@@ -37,7 +66,7 @@ const IncrementoAnalysis = ({ analysis, onNewAnalysis }) => {
       ['% Incremento Gobierno', `${comparison.params.pctGobierno}%`],
       ['% Incremento Empresa', `${comparison.params.pctEmpresa}%`],
       ['% Incremento Total', `${comparison.params.pctGobierno + comparison.params.pctEmpresa}%`],
-      ['Niveles con Incremento', comparison.nivelesAplicados.join(', ')],
+      ['Niveles con Incremento', (comparison.nivelesAplicados && comparison.nivelesAplicados.length > 0) ? comparison.nivelesAplicados.join(', ') : 'Ninguno'],
       [''],
       ['RESUMEN GLOBAL'],
       ['Total Empleados', comparison.totalEmpleados],
@@ -46,9 +75,24 @@ const IncrementoAnalysis = ({ analysis, onNewAnalysis }) => {
       [''],
       ['COMPARATIVO DE COSTOS'],
       ['', 'ACTUAL', 'PROYECTADO 2026', 'DELTA', '% VARIACIÓN'],
-      ['Masa Salarial', comparison.ganadoActual, comparison.ganadoNuevo, comparison.deltaGanado, `${((comparison.deltaGanado/comparison.ganadoActual)*100).toFixed(2)}%`],
-      ['Cargas Patronales (17.21%)', comparison.patronalActual, comparison.patronalNuevo, comparison.deltaPatronal, `${((comparison.deltaPatronal/comparison.patronalActual)*100).toFixed(2)}%`],
-      ['Provisiones', comparison.provisionesActual, comparison.provisionesNuevo, comparison.deltaProvisiones, `${((comparison.deltaProvisiones/comparison.provisionesActual)*100).toFixed(2)}%`],
+      ['Masa Salarial', 
+        comparison.ganadoActual, 
+        comparison.ganadoNuevo, 
+        comparison.deltaGanado, 
+        comparison.ganadoActual > 0 ? `${((comparison.deltaGanado/comparison.ganadoActual)*100).toFixed(2)}%` : '0%'
+      ],
+      ['Cargas Patronales (17.21%)', 
+        comparison.patronalActual, 
+        comparison.patronalNuevo, 
+        comparison.deltaPatronal, 
+        comparison.patronalActual > 0 ? `${((comparison.deltaPatronal/comparison.patronalActual)*100).toFixed(2)}%` : '0%'
+      ],
+      ['Provisiones', 
+        comparison.provisionesActual, 
+        comparison.provisionesNuevo, 
+        comparison.deltaProvisiones, 
+        comparison.provisionesActual > 0 ? `${((comparison.deltaProvisiones/comparison.provisionesActual)*100).toFixed(2)}%` : '0%'
+      ],
       ['COSTO TOTAL EMPRESA', comparison.costoActual, comparison.costoNuevo, comparison.impactoTotal, `${comparison.pctImpacto.toFixed(2)}%`],
       [''],
       ['IMPACTO ECONÓMICO MENSUAL', formatCurrency(comparison.impactoTotal)],
@@ -65,28 +109,28 @@ const IncrementoAnalysis = ({ analysis, onNewAnalysis }) => {
       'Nivel': d.nivel,
       'Área': d.area,
       'Regional': d.regional,
-      '': '', // Separador visual
+      '---': '', // Separador visual
       'Haber Básico ACTUAL': d.haberBasicoActual,
       'Haber Básico NUEVO': d.haberBasicoNuevo,
       'Δ Haber Básico': d.deltaHaber,
       '% Var Haber': d.haberBasicoActual > 0 ? `${((d.deltaHaber/d.haberBasicoActual)*100).toFixed(2)}%` : '0%',
-      '  ': '', // Separador
+      '----': '', // Separador
       'Bono Antigüedad ACTUAL': d.bonoAntiguedadActual,
       'Bono Antigüedad NUEVO': d.bonoAntiguedadNuevo,
       'Δ Antigüedad': d.deltaAntiguedad,
-      '   ': '', // Separador
+      '-----': '', // Separador
       'Otros Bonos (FIJOS)': d.otrosBonos,
-      '    ': '', // Separador
+      '------': '', // Separador
       'Total Ganado ACTUAL': d.totalGanadoActual,
       'Total Ganado NUEVO': d.totalGanadoNuevo,
       'Δ Total Ganado': d.deltaTotalGanado,
       '% Var Ganado': `${d.pctVariacionGanado.toFixed(2)}%`,
-      '     ': '', // Separador
+      '-------': '', // Separador
       'Costo Total ACTUAL': d.costoTotalActual,
       'Costo Total NUEVO': d.costoTotalNuevo,
       'Δ Costo Total': d.deltaCostoTotal,
       '% Var Costo': `${d.pctVariacionCosto.toFixed(2)}%`,
-      '      ': '', // Separador
+      '--------': '', // Separador
       'Recibe Incremento %': d.recibeIncremento ? 'SÍ' : 'NO',
       'Nivelado por SMN': d.tocoElPiso ? 'SÍ' : 'NO'
     }));
@@ -356,7 +400,16 @@ const IncrementoAnalysis = ({ analysis, onNewAnalysis }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredData.map((d, i) => (
+              {filteredData.length === 0 ? (
+                <tr>
+                  <td colSpan="8" className="px-6 py-12 text-center">
+                    <AlertTriangle className="w-12 h-12 text-slate-400 mx-auto mb-4" />
+                    <p className="text-slate-600 font-medium">No hay empleados que coincidan con los filtros seleccionados</p>
+                    <p className="text-sm text-slate-500 mt-2">Intenta cambiar los filtros para ver más resultados</p>
+                  </td>
+                </tr>
+              ) : (
+                filteredData.map((d, i) => (
                 <React.Fragment key={i}>
                   <tr className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4">
@@ -439,7 +492,8 @@ const IncrementoAnalysis = ({ analysis, onNewAnalysis }) => {
                     </tr>
                   )}
                 </React.Fragment>
-              ))}
+              ))
+              )}
             </tbody>
           </table>
         </div>

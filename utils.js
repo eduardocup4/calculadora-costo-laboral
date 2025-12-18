@@ -972,13 +972,30 @@ export const mapearNiveles = (planillaData, nivelesData, cargoColumnPlanilla, ca
 const calcularNuevaAntiguedad = (fechaIngreso, nuevoSMN) => {
   if (!fechaIngreso) return 0;
   
-  const years = (new Date() - fechaIngreso) / (1000 * 60 * 60 * 24 * 365.25);
-  
-  // Buscar escala correspondiente
-  const scale = CONSTANTS.ESCALA_ANTIGUEDAD.find(s => years >= s.min && years < s.max);
-  const pct = scale ? scale.pct : 0.50; // Máximo 50% si >25 años
-  
-  return (nuevoSMN * 3) * pct;
+  try {
+    const fecha = new Date(fechaIngreso);
+    if (isNaN(fecha.getTime())) {
+      console.warn('Fecha de ingreso inválida:', fechaIngreso);
+      return 0;
+    }
+    
+    const years = (new Date() - fecha) / (1000 * 60 * 60 * 24 * 365.25);
+    
+    // Validar que no sea fecha futura
+    if (years < 0) {
+      console.warn('Fecha de ingreso en el futuro:', fechaIngreso);
+      return 0;
+    }
+    
+    // Buscar escala correspondiente
+    const scale = CONSTANTS.ESCALA_ANTIGUEDAD.find(s => years >= s.min && years < s.max);
+    const pct = scale ? scale.pct : 0.50; // Máximo 50% si >25 años
+    
+    return (nuevoSMN * 3) * pct;
+  } catch (err) {
+    console.error('Error calculando antigüedad:', err);
+    return 0;
+  }
 };
 
 /**
@@ -1014,6 +1031,7 @@ export const calculateIncrementSimulation = (
     // ===== PASO 1: LÍNEA BASE (Datos actuales) =====
     const haberBasicoActual = emp.haberBasico;
     const bonoAntiguedadActual = emp.bonoAntiguedad;
+    const bonoDominical = emp.bonoDominical || 0; // Se mantiene FIJO
     const otrosBonos = emp.otrosBonos; // Se mantienen FIJOS
     const totalGanadoActual = emp.totalGanado;
     
@@ -1037,7 +1055,7 @@ export const calculateIncrementSimulation = (
     if (tocoElPiso) niveladosPorSMN++;
     
     // ===== PASO 5: CONSOLIDACIÓN =====
-    const totalGanadoNuevo = haberBasicoNuevo + bonoAntiguedadNuevo + otrosBonos;
+    const totalGanadoNuevo = haberBasicoNuevo + bonoAntiguedadNuevo + bonoDominical + otrosBonos;
     
     // Recalcular cargas patronales (17.21%)
     const cnsNuevo = totalGanadoNuevo * CONSTANTS.CNS;
@@ -1077,6 +1095,7 @@ export const calculateIncrementSimulation = (
       // Línea Base (Actual)
       haberBasicoActual,
       bonoAntiguedadActual,
+      bonoDominical, // Agregado para trazabilidad
       otrosBonos,
       totalGanadoActual,
       costoTotalActual: emp.costoTotalMensual,
